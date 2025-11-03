@@ -1,0 +1,50 @@
+{
+  "status": "success",
+  "message": "Data retrieved successfully",
+  "timestamp": "2023-12-01T10:30:00Z",
+  "data": {
+    "total": 2,
+    "page": 1,
+    "users": [
+      {
+        "id": 1,
+        "name": "John Doe",
+        "email": "john@example.com",
+        "profile": {
+          "age": 30,
+          "city": "New York",
+          "preferences": {
+            "theme": "dark",
+            "notifications": true
+          }
+        },
+        "orders": [
+          {"id": 101, "total": 29.99, "items": ["book", "pen"]},
+          {"id": 102, "total": 49.99, "items": ["notebook", "pencil"]}
+        ]
+      },
+      {
+        "id": 2,
+        "name": "Jane Smith",
+        "email": "jane@example.com",
+        "profile": {
+          "age": 25,
+          "city": "Los Angeles",
+          "preferences": {
+            "theme": "light",
+            "notifications": false
+          }
+        },
+        "orders": [
+          {"id": 103, "total": 19.99, "items": ["eraser"]},
+          {"id": 104, "total": 39.99, "items": ["calculator", "ruler"]}
+        ]
+      }
+    ]
+  },
+  "metadata": {
+    "version": "1.0",
+    "server": "api.example.com",
+    "response_time": "120ms"
+  }
+}

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "test_1",
+    "name": "Item 1",
+    "block_history": {
+      "unblock_entree_at": 0,
+      "unblock_sortie_at": 0,
+      "block_entree_at": 0,
+      "block_sortie_at": 0,
+      "motif_block_sortie": "",
+      "motif_block_entree": "",
+      "unblock_entree_editor": "",
+      "unblock_entree_editor_id": "",
+      "unblock_sortie_editor": "",
+      "unblock_sortie_editor_id": "",
+      "block_entree_editor": "",
+      "block_entree_editor_id": "",
+      "block_sortie_editor": "",
+      "block_sortie_editor_id": ""
+    },
+    "status": "active"
+  },
+  {
+    "id": "test_2",
+    "name": "Item 2",
+    "block_history": {
+      "unblock_entree_at": 1234567890,
+      "unblock_sortie_at": 1234567891,
+      "block_entree_at": 1234567880,
+      "block_sortie_at": 1234567881,
+      "motif_block_sortie": "test motif",
+      "motif_block_entree": "another motif",
+      "unblock_entree_editor": "editor1",
+      "unblock_entree_editor_id": "editor_id_1",
+      "unblock_sortie_editor": "editor2",
+      "unblock_sortie_editor_id": "editor_id_2",
+      "block_entree_editor": "editor3",
+      "block_entree_editor_id": "editor_id_3",
+      "block_sortie_editor": "editor4",
+      "block_sortie_editor_id": "editor_id_4"
+    },
+    "status": "inactive"
+  }
+]

@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Almightycoon - Data Transformation Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #4facfe;
+            --secondary-color: #00f2fe;
+            --success-color: #84fab0;
+            --error-color: #f5576c;
+            --warning-color: #ffc107;
+            --dark-bg: #2c3e50;
+            --light-bg: #f8f9fa;
+            --border-color: #dee2e6;
+            --text-primary: #2c3e50;
+            --text-secondary: #6c757d;
+            --shadow: 0 4px 6px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--light-bg);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header with converter selector */
+        .header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            padding: 15px 30px;
+            box-shadow: var(--shadow);
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 100%;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .converter-selector {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .converter-selector label {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .converter-dropdown {
+            background: rgba(255,255,255,0.2);
+            border: 2px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            min-width: 200px;
+            transition: all 0.3s ease;
+        }
+
+        .converter-dropdown:hover {
+            background: rgba(255,255,255,0.3);
+            border-color: rgba(255,255,255,0.5);
+        }
+
+        .converter-dropdown:focus {
+            outline: none;
+            background: rgba(255,255,255,0.9);
+            color: var(--text-primary);
+        }
+
+        /* Main content area */
+        .main-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Left panel - Input area */
+        .left-panel {
+            width: 40%;
+            min-width: 350px;
+            background: white;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .left-panel-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--light-bg);
+        }
+
+        .left-panel-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+        }
+
+        .input-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .input-controls .button {
+            padding: 8px 16px;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-label {
+            display: inline-block;
+            padding: 8px 16px;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: transform 0.2s ease;
+        }
+
+        .file-input-label:hover {
+            transform: translateY(-1px);
+        }
+
+        .file-info {
+            color: var(--success-color);
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .textarea-container {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .textarea-wrapper {
+            flex: 1;
+            position: relative;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        textarea {
+            width: 100%;
+            height: 100%;
+            padding: 15px;
+            border: none;
+            font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            resize: none;
+            outline: none;
+            background: #fafbfc;
+            line-height: 1.5;
+        }
+
+        .textarea-toolbar {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .toolbar-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .toolbar-button {
+            padding: 4px 8px;
+            background: var(--light-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .toolbar-button:hover {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        /* Right panel - Table area */
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            overflow: hidden; /* Prevent content from overflowing */
+            min-width: 0; /* Allow panel to shrink in flex context */
+        }
+
+        .right-panel-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--light-bg);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .search-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .column-search-dropdown {
+            position: relative;
+            flex: 1;
+            max-width: 300px;
+        }
+
+        .column-search-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .column-search-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+        }
+
+        .column-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid var(--border-color);
+            border-top: none;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+
+        .column-suggestions.show {
+            display: block;
+        }
+
+        .suggestion-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            transition: background-color 0.2s ease;
+            font-size: 13px;
+        }
+
+        .suggestion-item:hover {
+            background-color: var(--light-bg);
+        }
+
+        .suggestion-item.selected {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .suggestion-level-1 { padding-left: 20px; }
+        .suggestion-level-2 { padding-left: 35px; }
+        .suggestion-level-3 { padding-left: 50px; }
+        .suggestion-level-4 { padding-left: 65px; }
+
+        .json-path-container {
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        #jsonPath {
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            background-color: #f8f9fa;
+            color: #495057;
+            cursor: default;
+        }
+
+        #jsonPath:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(79, 172, 254, 0.2);
+        }
+
+        .path-examples {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .path-examples code {
+            background: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            color: #e83e8c;
+        }
+
+        .right-panel-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .stats {
+            display: flex;
+            gap: 15px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .stat-value {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .table-area {
+            flex: 1;
+            padding: 20px;
+            overflow: hidden; /* Let table-container handle scrolling */
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            min-width: 0; /* Allow area to shrink in flex context */
+            min-height: 0; /* Allow area to shrink in flex context */
+        }
+
+        .table-container {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow-x: auto;
+            overflow-y: auto;
+            background: white;
+            width: 100%;
+            max-width: 100%; /* Prevent container from growing beyond parent */
+            min-width: 0; /* Allow container to shrink */
+            flex: 1; /* Take up available space in table-area */
+            min-height: 0; /* Allow container to shrink in flex context */
+        }
+
+        /* Make scrollbar more visible */
+        .table-container::-webkit-scrollbar {
+            height: 12px;
+            width: 12px;
+        }
+
+        .table-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 6px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 6px;
+        }
+
+        .table-container::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        table {
+            width: max-content; /* Let table be as wide as needed */
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        /* Add explicit width for table cells to ensure overflow */
+        th, td {
+            padding: 10px 12px;
+            text-align: left;
+            min-width: 150px; /* Ensure reasonable minimum cell width */
+            max-width: 300px; /* Maximum cell width */
+            white-space: nowrap; /* Prevent text wrapping */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-size: 12px;
+            user-select: none;
+            cursor: pointer;
+        }
+
+        /* Hierarchical color palette */
+        th.level-0 { background-color: var(--dark-bg); }
+        th.level-1 { background-color: #34495e; }
+        th.level-2 { background-color: #7f8c8d; }
+        th.level-3 { background-color: #95a5a6; }
+        th.level-4 { background-color: #bdc3c7; color: var(--text-primary); }
+        th.level-5 { background-color: #ecf0f1; color: var(--text-primary); }
+        th.level-6 { background-color: #f8f9fa; color: var(--text-primary); }
+        th.level-deep { background-color: #ffffff; color: var(--text-primary); border-color: var(--border-color); }
+
+        th.array-index {
+            background-color: #e8f4f8 !important;
+            color: var(--text-primary);
+            border-left: 3px solid var(--primary-color);
+        }
+
+        th:hover {
+            filter: brightness(1.1);
+        }
+
+        tr:hover {
+            background: rgba(79, 172, 254, 0.05);
+        }
+
+        /* Pagination */
+        .pagination-container {
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+            background: var(--light-bg);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .pagination-info {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .pagination-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .pagination-button {
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .pagination-button:hover:not(:disabled) {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+
+        .pagination-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .page-size-selector {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .page-size-select {
+            padding: 6px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        /* Messages */
+        .message-area {
+            padding: 15px 20px;
+            display: none;
+        }
+
+        .message-area.show {
+            display: block;
+        }
+
+        .success-message {
+            background: linear-gradient(135deg, var(--success-color) 0%, #8fd3f4 100%);
+            color: #155724;
+            padding: 12px 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            animation: slideIn 0.3s ease;
+        }
+
+        .error-message {
+            background: linear-gradient(135deg, #f093fb 0%, var(--error-color) 100%);
+            color: white;
+            padding: 12px 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state svg {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+            .left-panel {
+                width: 50%;
+                min-width: 300px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .main-container {
+                flex-direction: column;
+            }
+
+            .left-panel {
+                width: 100%;
+                min-width: unset;
+                height: 50vh;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .right-panel {
+                height: 50vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header with converter selector -->
+    <header class="header">
+        <div class="header-content">
+            <h1>Almightycoon</h1>
+            <div class="converter-selector">
+                <label for="converterType">Converter:</label>
+                <select id="converterType" class="converter-dropdown">
+                    <option value="json-to-table">JSON to Table</option>
+                    <option value="table-to-json">Table to JSON</option>
+                    <option value="csv-converter">CSV Converter</option>
+                    <option value="xml-converter">XML Converter</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main content area -->
+    <main class="main-container">
+        <!-- Left Panel - Input Area -->
+        <section class="left-panel">
+            <div class="left-panel-header">
+                <h2 class="left-panel-title">JSON Input</h2>
+                <div class="input-controls">
+                    <button class="button" onclick="convertJson()">
+                        🔄 Convert
+                    </button>
+                    <button class="button secondary" onclick="showPathExplorer()">
+                        🔍 Explore Paths
+                    </button>
+                    <button class="button secondary" onclick="beautifyJson()">
+                        ✨ Beautify
+                    </button>
+                    <div class="file-input-wrapper">
+                        <input type="file" id="jsonFile" accept=".json,application/json">
+                        <label for="jsonFile" class="file-input-label">
+                            📁 Load File
+                        </label>
+                    </div>
+                    <button class="button danger" onclick="window.AllmightyUtils.clearAll()">
+                        🗑️ Clear
+                    </button>
+                </div>
+                <div class="json-path-container">
+                    <input type="text" id="jsonPath" placeholder="Selected path will appear here (leave empty for full JSON)" readonly />
+                    <div class="path-examples">
+                        <small>📍 Current selection: <span id="currentPathDisplay">Full JSON (no path selected)</span></small>
+                    </div>
+                </div>
+                <div id="fileInfo" class="file-info"></div>
+            </div>
+
+            <div class="textarea-container">
+                <div class="textarea-wrapper">
+                    <textarea id="jsonInput" placeholder="Paste your JSON data here or load a file to get started.&#10;&#10;Example: {&quot;name&quot;: &quot;John Doe&quot;, &quot;age&quot;: 30}&#10;&#10;Tip: Use the Beautify button to format your JSON!"></textarea>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel - Table Area -->
+        <section class="right-panel">
+            <div class="right-panel-header">
+                <div class="search-container">
+                    <div class="column-search-dropdown">
+                        <input
+                            type="text"
+                            id="columnSearch"
+                            class="column-search-input"
+                            placeholder="🔍 Search columns..."
+                            autocomplete="off"
+                        >
+                        <div id="columnSuggestions" class="column-suggestions"></div>
+                    </div>
+                </div>
+
+                <div class="right-panel-controls">
+                    <div class="stats" id="statsArea" style="display: none;">
+                        <div class="stat">
+                            <span>Rows:</span>
+                            <span class="stat-value" id="rowCount">0</span>
+                        </div>
+                        <div class="stat">
+                            <span>Columns:</span>
+                            <span class="stat-value" id="colCount">0</span>
+                        </div>
+                    </div>
+                    <button class="button secondary" onclick="window.JsonToTable.exportToCsv()" id="exportButton" style="display: none;">
+                        📥 Export CSV
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-area">
+                <div id="messageArea" class="message-area"></div>
+                <div id="tableContainer" class="table-container">
+                    <div class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="9" y1="9" x2="15" y2="9"></line>
+                            <line x1="9" y1="15" x2="15" y2="15"></line>
+                        </svg>
+                        <h3>No Data Yet</h3>
+                        <p>Paste JSON data or load a file to get started</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pagination-container" id="paginationContainer" style="display: none;">
+                <div class="pagination-info">
+                    Showing <span id="startRow">0</span>-<span id="endRow">0</span> of <span id="totalRows">0</span> rows
+                </div>
+                <div class="pagination-controls">
+                    <button class="pagination-button" id="firstPage" onclick="goToPage(1)">⏮</button>
+                    <button class="pagination-button" id="prevPage" onclick="goToPage(currentPage - 1)">◀</button>
+                    <span id="pageInfo">Page 1 of 1</span>
+                    <button class="pagination-button" id="nextPage" onclick="goToPage(currentPage + 1)">▶</button>
+                    <button class="pagination-button" id="lastPage" onclick="goToPage(totalPages)">⏭</button>
+                    <div class="page-size-selector">
+                        <label for="pageSize">Rows:</label>
+                        <select id="pageSize" class="page-size-select" onchange="changePageSize()">
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="200">200</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Load modular JavaScript files -->
+    <script src="js/utils.js"></script>
+    <script src="js/json-to-table.js"></script>
+    <script src="js/table-to-json.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

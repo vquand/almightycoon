@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Debug Test</title>
+</head>
+<body>
+    <h1>JavaScript Loading Debug Test</h1>
+    <button onclick="testBeautify()">Test Beautify</button>
+    <button onclick="testConvert()">Test Convert</button>
+    <div id="output"></div>
+
+    <script>
+        console.log('Loading utils.js...');
+    </script>
+    <script src="js/utils.js"></script>
+    <script>
+        console.log('Utils loaded, loading json-to-table.js...');
+    </script>
+    <script src="js/json-to-table.js"></script>
+    <script>
+        console.log('JSON-to-table loaded, loading main.js...');
+    </script>
+    <script src="js/main.js"></script>
+    <script>
+        console.log('All scripts loaded');
+
+        function testBeautify() {
+            console.log('Testing beautifyJson:', typeof beautifyJson);
+            document.getElementById('output').innerHTML = 'beautifyJson type: ' + typeof beautifyJson;
+        }
+
+        function testConvert() {
+            console.log('Testing convertJson:', typeof convertJson);
+            document.getElementById('output').innerHTML = 'convertJson type: ' + typeof convertJson;
+        }
+    </script>
+</body>
+</html>

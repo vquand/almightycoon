@@ -1,0 +1,40 @@
+[
+  {
+    "id": "test_1",
+    "name": "Item with complete nesting",
+    "block_history": {
+      "unblock_entree_at": 0,
+      "unblock_sortie_at": 1234567890,
+      "nested_info": {
+        "level1": "value1",
+        "level2": {
+          "deep": "deep_value"
+        }
+      }
+    },
+    "conditionnement": [
+      {
+        "id": "con_001",
+        "nom": "UC",
+        "niveau": 1,
+        "dimensions": {
+          "longueur": 10,
+          "largeur": 10,
+          "hauteur": 10
+        }
+      },
+      {
+        "id": "con_002",
+        "nom": "UD",
+        "niveau": 2,
+        "dimensions": {
+          "longueur": 20,
+          "largeur": 20,
+          "hauteur": 15
+        }
+      }
+    ],
+    "simple_array": ["a", "b", "c"],
+    "status": "active"
+  }
+]

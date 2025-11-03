@@ -1,0 +1,42 @@
+[
+  {
+    "id": 1,
+    "first_name": "Johnathan",
+    "last_name": "Williamson-Smith",
+    "email_address": "johnathan.williamson.smith@example.com",
+    "phone_number": "+1-555-123-4567",
+    "street_address": "1234 Very Long Street Name Boulevard",
+    "city_name": "San Francisco",
+    "state_province": "California",
+    "postal_code": "94102-1234",
+    "country_name": "United States of America",
+    "company_name": "International Technology Solutions Corporation",
+    "job_title": "Senior Software Development Engineer",
+    "department": "Research and Development",
+    "hire_date": "2020-01-15T09:00:00Z",
+    "salary_currency": "USD",
+    "annual_salary": "125000.00",
+    "employee_id": "EMP-2020-001-USA",
+    "social_security": "123-45-6789"
+  },
+  {
+    "id": 2,
+    "first_name": "Elizabeth",
+    "last_name": " Alexandra-Montgomery",
+    "email_address": "elizabeth.alexandra.montgomery@example.com",
+    "phone_number": "+1-555-987-6543",
+    "street_address": "5678 Extended Avenue with Long Name",
+    "city_name": "New York City",
+    "state_province": "New York",
+    "postal_code": "10001-5678",
+    "country_name": "United States of America",
+    "company_name": "Global Financial Services Limited Partnership",
+    "job_title": "Chief Financial Officer and Treasurer",
+    "department": "Executive Management and Finance",
+    "hire_date": "2018-06-01T08:30:00Z",
+    "salary_currency": "USD",
+    "annual_salary": "250000.00",
+    "employee_id": "EMP-2018-002-USA",
+    "social_security": "987-65-4321"
+  }
+]

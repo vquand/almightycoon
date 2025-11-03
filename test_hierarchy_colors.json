@@ -1,0 +1,89 @@
+[
+  {
+    "id": "test_1",
+    "name": "Deep Nesting Example",
+    "status": "active",
+    "user": {
+      "id": "user_001",
+      "profile": {
+        "personal": {
+          "firstName": "John",
+          "lastName": "Doe",
+          "contact": {
+            "email": "john@example.com",
+            "phone": {
+              "mobile": "123-456-7890",
+              "home": "098-765-4321"
+            }
+          }
+        },
+        "preferences": {
+          "theme": "dark",
+          "notifications": {
+            "email": true,
+            "push": {
+              "enabled": true,
+              "frequency": "daily"
+            }
+          }
+        }
+      }
+    },
+    "block_history": "{\"unblock_entree_at\":0,\"unblock_sortie_at\":1234567890,\"block_entree_at\":1234567880,\"motif_block_entree\":\"test\"}",
+    "metadata": {
+      "created": "2023-01-01",
+      "tags": ["test", "demo"],
+      "config": {
+        "settings": {
+          "version": "1.0",
+          "features": {
+            "advanced": true,
+            "experimental": false
+          }
+        }
+      }
+    },
+    "items": [
+      {
+        "type": "product",
+        "details": {
+          "name": "Item 1",
+          "properties": {
+            "color": "red",
+            "size": "large"
+          }
+        }
+      },
+      {
+        "type": "service",
+        "details": {
+          "name": "Service 1",
+          "properties": {
+            "duration": 60,
+            "category": "consulting"
+          }
+        }
+      }
+    ],
+    "simple_field": "Level 0",
+    "another.level.one": "Explicit dot notation",
+    "array[0].with.dots": "Array with dots",
+    "deep.nested.array[1].value": "Deep array value"
+  },
+  {
+    "id": "test_2",
+    "name": "Simple Example",
+    "status": "inactive",
+    "user": {
+      "id": "user_002",
+      "profile": {
+        "personal": {
+          "firstName": "Jane",
+          "lastName": "Smith"
+        }
+      }
+    },
+    "block_history": "{\"unblock_entree_at\":1234567891,\"unblock_sortie_at\":1234567892,\"motif_block_entree\":\"test 2\"}",
+    "simple_field": "Another level 0"
+  }
+]

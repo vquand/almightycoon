@@ -1,0 +1,14 @@
+[
+  {
+    "id": "ref_test_1",
+    "nom": "Test Reference 1",
+    "block_history": "{\"unblock_entree_at\":0,\"unblock_sortie_at\":1234567890,\"block_entree_at\":1234567880,\"block_sortie_at\":1234567881,\"motif_block_sortie\":\"test motif 1\",\"motif_block_entree\":\"another motif 1\",\"unblock_entree_editor\":\"editor1\",\"unblock_entree_editor_id\":\"editor_id_1\",\"unblock_sortie_editor\":\"editor2\",\"unblock_sortie_editor_id\":\"editor_id_2\",\"block_entree_editor\":\"editor3\",\"block_entree_editor_id\":\"editor_id_3\",\"block_sortie_editor\":\"editor4\",\"block_sortie_editor_id\":\"editor_id_4\"}",
+    "status": "active"
+  },
+  {
+    "id": "ref_test_2",
+    "nom": "Test Reference 2",
+    "block_history": "{\"unblock_entree_at\":1234567891,\"unblock_sortie_at\":1234567892,\"block_entree_at\":1234567882,\"block_sortie_at\":1234567883,\"motif_block_sortie\":\"test motif 2\",\"motif_block_entree\":\"another motif 2\",\"unblock_entree_editor\":\"editor5\",\"unblock_entree_editor_id\":\"editor_id_5\",\"unblock_sortie_editor\":\"editor6\",\"unblock_sortie_editor_id\":\"editor_id_6\",\"block_entree_editor\":\"editor7\",\"block_entree_editor_id\":\"editor_id_7\",\"block_sortie_editor\":\"editor8\",\"block_sortie_editor_id\":\"editor_id_8\"}",
+    "status": "inactive"
+  }
+]
