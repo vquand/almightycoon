@@ -22,10 +22,34 @@ let availableColumns = [];
 let filteredColumns = [];
 let selectedColumnIndex = -1;
 
+// Column filter state
+let columnFilters = new Map(); // columnName -> { search: string, values: Set() }
+let allUniqueValues = new Map(); // columnName -> array of unique values
+let filteredData = []; // Data after applying all filters
+
 // Performance optimization state
 let isProcessing = false;
 let renderQueue = [];
 let isRenderScheduled = false;
+
+// Debounced search state
+let searchTimeouts = new Map(); // columnIndex -> timeoutId
+
+// Dropdown state preservation
+let openDropdownColumn = null; // Store which column dropdown is open
+
+// Focus preservation for search inputs
+let focusedColumnInput = null; // Track which input is currently focused
+
+// Prevent unnecessary re-renders
+let renderTimeoutId = null;
+let isSearchDirty = false;
+
+// Session storage keys for decoupled communication
+const STORAGE_KEYS = {
+    COLUMN_SEARCH: 'almightycoon_column_search',
+    COLUMN_FILTERS: 'almightycoon_column_filters'
+};
 
 // Virtual scrolling state
 let virtualScrollingEnabled = false;
@@ -36,6 +60,9 @@ let virtualScrollPosition = 0;
 
 // Initialize the JSON to Table module
 function initJsonToTable() {
+    // Initialize session storage listener first
+    initializeSearchListener();
+
     // Set up file input handler
     const fileInput = document.getElementById('jsonFile');
     if (fileInput) {
@@ -87,7 +114,7 @@ function handleConverterChange(e) {
 
     // Show message for non-JSON converters
     if (converterType !== 'json-to-table') {
-        window.AllmightyUtils.showInfo(`${getConverterName(converterType)} is coming soon!`, 'messageArea');
+        window.AllmightyUtils.showInfo(`${getConverterName(converterType)} is coming soon!`);
     }
 }
 
@@ -108,88 +135,117 @@ function setupColumnSearch() {
     const searchInput = document.getElementById('columnSearch');
     const suggestions = document.getElementById('columnSuggestions');
 
-    if (!searchInput || !suggestions) return;
+    if (!searchInput || !suggestions) {
+        console.warn('Column search elements not found');
+        return;
+    }
 
+    
     // Input event for search
     searchInput.addEventListener('input', handleColumnSearch);
 
-    // Keyboard navigation
+    // Keyboard navigation with enhanced behavior
     searchInput.addEventListener('keydown', (e) => {
         const items = suggestions.querySelectorAll('.suggestion-item');
 
         switch (e.key) {
             case 'ArrowDown':
                 e.preventDefault();
-                selectedColumnIndex = Math.min(selectedColumnIndex + 1, items.length - 1);
-                updateSuggestionSelection();
+                if (selectedColumnIndex < items.length - 1) {
+                    selectedColumnIndex++;
+                    updateSuggestionSelection();
+                }
                 break;
             case 'ArrowUp':
                 e.preventDefault();
-                selectedColumnIndex = Math.max(selectedColumnIndex - 1, 0);
-                updateSuggestionSelection();
+                if (selectedColumnIndex > 0) {
+                    selectedColumnIndex--;
+                    updateSuggestionSelection();
+                }
                 break;
             case 'Enter':
                 e.preventDefault();
-                if (selectedColumnIndex >= 0 && items[selectedColumnIndex]) {
-                    selectColumn(items[selectedColumnIndex].textContent);
+                if (selectedColumnIndex >= 0 && filteredColumns[selectedColumnIndex]) {
+                    goToColumn(filteredColumns[selectedColumnIndex]);
                 }
                 break;
             case 'Escape':
-                hideSuggestions();
+                hideColumnDropdown();
                 searchInput.blur();
+                break;
+            case 'Tab':
+                // Allow tab navigation but close dropdown
+                setTimeout(() => hideColumnDropdown(), 100);
                 break;
         }
     });
 
-    // Hide suggestions when clicking outside
+    // Show dropdown on focus
+    searchInput.addEventListener('focus', () => {
+        handleColumnSearch({ target: searchInput });
+    });
+
+    // Hide dropdown when clicking outside
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.column-search-dropdown')) {
-            hideSuggestions();
+        if (!e.target.closest('#columnSearch') && !e.target.closest('#columnSuggestions')) {
+            hideColumnDropdown();
         }
     });
 }
 
-// Handle column search input
-function handleColumnSearch(e) {
-    const searchTerm = e.target.value.toLowerCase().trim();
-    const suggestions = document.getElementById('columnSuggestions');
 
-    if (!availableColumns.length) return;
 
-    // Filter columns based on search term
-    filteredColumns = availableColumns.filter(col =>
-        col.toLowerCase().includes(searchTerm)
-    );
+// Refresh column search after data conversion
+function refreshColumnSearch() {
+    // Clear any existing dropdown state
+    hideColumnDropdown();
 
-    if (filteredColumns.length > 0) {
-        showSuggestions(filteredColumns);
-        selectedColumnIndex = 0;
-        updateSuggestionSelection();
-    } else {
-        hideSuggestions();
+    // Clear search input
+    const searchInput = document.getElementById('columnSearch');
+    if (searchInput) {
+        searchInput.value = '';
+        // Reset placeholder to show updated status
+        searchInput.placeholder = `🎯 Go to column... (${availableColumns.length} available)`;
     }
 }
 
-// Show column suggestions
-function showSuggestions(columns) {
+// Show message when no columns are available
+function showNoColumnsMessage(searchInput) {
     const suggestions = document.getElementById('columnSuggestions');
     if (!suggestions) return;
 
-    suggestions.innerHTML = columns.map(col => {
-        const level = getColumnLevel(col);
-        const levelClass = level > 0 ? `suggestion-level-${Math.min(level, 4)}` : '';
-        return `<div class="suggestion-item ${levelClass}" onclick="selectColumn('${col}')">${col}</div>`;
-    }).join('');
+    suggestions.innerHTML = `
+        <div class="suggestion-item disabled" style="color: #9ca3af; font-style: italic; cursor: default;">
+            <div class="flex items-center gap-2">
+                <span>📊 No columns available</span>
+            </div>
+            <div class="text-xs text-gray-400 mt-1">
+                Load JSON data first to see columns
+            </div>
+        </div>
+    `;
 
     suggestions.classList.add('show');
+    searchInput.setAttribute('aria-expanded', 'true');
+
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+        hideColumnDropdown();
+    }, 3000);
 }
 
-// Hide column suggestions
-function hideSuggestions() {
+// Hide column dropdown
+function hideColumnDropdown() {
     const suggestions = document.getElementById('columnSuggestions');
     if (suggestions) {
         suggestions.classList.remove('show');
         selectedColumnIndex = -1;
+
+        // Update ARIA attributes
+        const searchInput = document.getElementById('columnSearch');
+        if (searchInput) {
+            searchInput.setAttribute('aria-expanded', 'false');
+        }
     }
 }
 
@@ -206,9 +262,9 @@ function updateSuggestionSelection() {
     });
 }
 
-// Select a column and jump to it
-function selectColumn(columnName) {
-    hideSuggestions();
+// Go to column with enhanced navigation
+function goToColumn(columnName) {
+    hideColumnDropdown();
 
     const searchInput = document.getElementById('columnSearch');
     if (searchInput) {
@@ -217,43 +273,74 @@ function selectColumn(columnName) {
 
     // Find the column index in the table
     const table = document.querySelector('table');
-    if (!table) return;
+    if (!table) {
+        console.warn('No table found for column navigation');
+        return;
+    }
 
     const headers = table.querySelectorAll('th');
     let columnIndex = -1;
 
     headers.forEach((header, index) => {
-        if (header.textContent.trim() === columnName) {
+        // Look for the column name in the header chip
+        const headerChip = header.querySelector('.header-chip');
+        const headerText = headerChip ? headerChip.textContent.trim() : header.textContent.trim();
+
+        if (headerText === columnName) {
             columnIndex = index;
         }
     });
 
-    if (columnIndex === -1) return;
+    if (columnIndex === -1) {
+        console.warn(`Column "${columnName}" not found in table`);
+        window.AllmightyUtils.showError(`Column "${columnName}" not found`);
+        return;
+    }
 
-    // Scroll to the column
+    // Scroll to the column with smooth animation
     const tableContainer = document.getElementById('tableContainer');
     if (tableContainer) {
-        tableContainer.scrollLeft = 0;
         const header = headers[columnIndex];
         if (header) {
             const headerLeft = header.offsetLeft;
             const containerWidth = tableContainer.clientWidth;
-            const scrollTarget = headerLeft - (containerWidth / 2) + (header.offsetWidth / 2);
+            const headerWidth = header.offsetWidth;
+            const scrollTarget = headerLeft - (containerWidth / 2) + (headerWidth / 2);
 
             tableContainer.scrollTo({
-                left: scrollTarget,
+                left: Math.max(0, scrollTarget),
                 behavior: 'smooth'
             });
         }
     }
 
-    // Highlight the column temporarily
+    // Highlight the column temporarily with enhanced visual feedback
     highlightColumn(columnIndex);
 
-    window.AllmightyUtils.showSuccess(`Jumped to column: ${columnName}`, 'messageArea');
+    // Show success message with column info
+    const columnNumber = columnIndex; // 0-based index
+    window.AllmightyUtils.showSuccess(`🎯 Jumped to column "${columnName}" (${columnNumber + 1})`);
+
+    // Auto-clear the success message after 3 seconds
     setTimeout(() => {
-        window.AllmightyUtils.clearMessages('messageArea');
-    }, 2000);
+        window.AllmightyUtils.clearAllToasts();
+    }, 3000);
+
+    // Add a subtle pulse animation to the column header
+    const header = headers[columnIndex];
+    if (header) {
+        header.style.animation = 'pulse 0.6s ease-in-out 2';
+        setTimeout(() => {
+            if (header) {
+                header.style.animation = '';
+            }
+        }, 1200);
+    }
+}
+
+// Backward compatibility
+function selectColumn(columnName) {
+    goToColumn(columnName);
 }
 
 // Get column nesting level
@@ -284,27 +371,30 @@ function highlightColumn(columnIndex) {
 
 // Update pagination asynchronously
 async function updatePaginationAsync() {
-    if (!currentRows.length) {
+    // Use filtered data if available, otherwise use all data
+    const dataToUse = filteredData.length > 0 ? filteredData : currentRows;
+
+    if (!dataToUse.length) {
         hidePagination();
         return;
     }
 
-    totalPages = Math.ceil(currentRows.length / pageSize);
+    totalPages = Math.ceil(dataToUse.length / pageSize);
     currentPage = Math.min(currentPage, totalPages);
 
     // Calculate pagination bounds
     const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = Math.min(startIndex + pageSize, currentRows.length);
+    const endIndex = Math.min(startIndex + pageSize, dataToUse.length);
 
     // Get paginated rows asynchronously
     paginatedRows = await new Promise(resolve => {
         setTimeout(() => {
-            resolve(currentRows.slice(startIndex, endIndex));
+            resolve(dataToUse.slice(startIndex, endIndex));
         }, 0);
     });
 
     // Update pagination UI
-    updatePaginationUI(startIndex + 1, endIndex, currentRows.length);
+    updatePaginationUI(startIndex + 1, endIndex, dataToUse.length);
 
     // Enable/disable pagination buttons
     updatePaginationButtons();
@@ -312,23 +402,26 @@ async function updatePaginationAsync() {
 
 // Update pagination (synchronous version for compatibility)
 function updatePagination() {
-    if (!currentRows.length) {
+    // Use filtered data if available, otherwise use all data
+    const dataToUse = filteredData.length > 0 ? filteredData : currentRows;
+
+    if (!dataToUse.length) {
         hidePagination();
         return;
     }
 
-    totalPages = Math.ceil(currentRows.length / pageSize);
+    totalPages = Math.ceil(dataToUse.length / pageSize);
     currentPage = Math.min(currentPage, totalPages);
 
     // Calculate pagination bounds
     const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = Math.min(startIndex + pageSize, currentRows.length);
+    const endIndex = Math.min(startIndex + pageSize, dataToUse.length);
 
     // Get paginated rows
-    paginatedRows = currentRows.slice(startIndex, endIndex);
+    paginatedRows = dataToUse.slice(startIndex, endIndex);
 
     // Update pagination UI
-    updatePaginationUI(startIndex + 1, endIndex, currentRows.length);
+    updatePaginationUI(startIndex + 1, endIndex, dataToUse.length);
 
     // Enable/disable pagination buttons
     updatePaginationButtons();
@@ -449,14 +542,58 @@ function generatePaginatedTableHTML(rows, columns) {
     // Get actual row numbers (considering pagination)
     const startRowNum = (currentPage - 1) * pageSize + 1;
 
-    let html = '<table><thead><tr><th>#</th>';
-    columns.forEach(col => {
+    let html = '<table><thead><tr><th style="min-width: 60px; max-width: 60px;">#</th>';
+    columns.forEach((col, index) => {
         const hierarchyClass = getColumnHierarchyClass(col);
         const isArrayIndex = col.match(/\[\d+\]$/);
         const arrayClass = isArrayIndex ? ' array-index' : '';
         const sortIndicator = sortColumn === col ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : '';
+        const columnIndex = index + 1; // +1 because column 0 is the row number
 
-        html += `<th class="${hierarchyClass}${arrayClass}" onclick="toggleColumnSort('${col}')" title="Click to sort by ${window.AllmightyUtils.escapeHtml(col)}">${window.AllmightyUtils.escapeHtml(col)}${sortIndicator}</th>`;
+        const uniqueValues = allUniqueValues.get(col) || [];
+        const filterCount = (columnFilters.get(col)?.values?.size || 0);
+        const hasActiveFilter = filterCount > 0;
+
+        html += `
+        <th class="${hierarchyClass}${arrayClass}" style="min-width: 200px; max-width: 300px;">
+            <div class="column-controls">
+                <div style="display: flex; gap: 4px; align-items: center; margin-bottom: 4px;">
+                    <input type="text"
+                           class="column-search-box"
+                           style="flex: 1; min-width: 0;"
+                           id="col-search-${columnIndex}"
+                           placeholder="Search (regex)..."
+                           onkeyup="filterByColumn(${columnIndex}, '${window.AllmightyUtils.escapeHtml(col)}', this.value)"
+                           onfocus="setColumnSearchFocus(${columnIndex})"
+                           onblur="setColumnSearchBlur(${columnIndex})"
+                           onclick="event.stopPropagation()">
+                    <button class="column-filter-button ${hasActiveFilter ? 'active' : ''}"
+                            id="col-filter-btn-${columnIndex}"
+                            onclick="toggleColumnFilter(${columnIndex}, '${window.AllmightyUtils.escapeHtml(col)}', event)"
+                            style="flex-shrink: 0; padding: 4px 6px;">
+                        <span>v</span>
+                        <span id="col-filter-count-${columnIndex}">${filterCount > 0 ? filterCount : ''}</span>
+                    </button>
+                </div>
+                <div class="column-filter-dropdown" id="col-filter-dropdown-${columnIndex}">
+                    <div class="filter-controls">
+                        <button class="filter-control-button" onclick="selectAllFilterValues('${window.AllmightyUtils.escapeHtml(col)}')">All</button>
+                        <button class="filter-control-button" onclick="deselectAllFilterValues('${window.AllmightyUtils.escapeHtml(col)}')">None</button>
+                    </div>
+                    <div id="col-filter-options-${columnIndex}">
+                        ${generateFilterOptions(col, uniqueValues)}
+                    </div>
+                </div>
+                <div style="cursor: pointer; margin-top: 4px;"
+                     onclick="toggleColumnSort('${window.AllmightyUtils.escapeHtml(col)}')"
+                     title="Click to sort by ${window.AllmightyUtils.escapeHtml(col)}">
+                    <div class="header-chip">
+                        ${window.AllmightyUtils.escapeHtml(col)}
+                        <span class="sort-indicator">${sortIndicator}</span>
+                    </div>
+                </div>
+            </div>
+        </th>`;
     });
     html += '</tr></thead><tbody>';
 
@@ -478,10 +615,184 @@ function generatePaginatedTableHTML(rows, columns) {
 function scheduleTableRender() {
     if (isRenderScheduled) return;
 
+    // If a search input is focused, delay rendering to prevent focus loss
+    if (focusedColumnInput !== null) {
+        console.log(`Delaying render because input col-${focusedColumnInput} is focused`);
+
+        // Schedule render for when focus is lost or after a longer delay
+        if (renderTimeoutId) {
+            clearTimeout(renderTimeoutId);
+        }
+
+        renderTimeoutId = setTimeout(() => {
+            // Check if still focused after delay
+            if (focusedColumnInput === null) {
+                console.log('Input no longer focused, proceeding with render');
+                performTableRender();
+            } else {
+                console.log('Input still focused, forcing background update');
+                performBackgroundUpdate();
+            }
+        }, 500); // Longer delay when input is focused
+
+        return;
+    }
+
+    performTableRender();
+}
+
+// Separate the actual rendering logic
+function performTableRender() {
+    // Store current UI state to restore after render
+    const activeDropdown = openDropdownColumn;
+    const searchValues = new Map(); // columnIndex -> searchValue
+    const activeElement = document.activeElement;
+    const activeElementId = activeElement ? activeElement.id : null;
+
+    // Get search values from session storage (most accurate)
+    try {
+        const searchState = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.COLUMN_SEARCH) || '{}');
+
+        Object.entries(searchState).forEach(([columnName, searchValue]) => {
+            const columnIndex = currentColumns.indexOf(columnName) + 1;
+            if (columnIndex > 0) {
+                searchValues.set(columnIndex, {
+                    value: searchValue || '',
+                    cursorStart: searchValue ? searchValue.length : 0,
+                    cursorEnd: searchValue ? searchValue.length : 0
+                });
+            }
+        });
+    } catch (e) {
+        console.error('Failed to restore search values from session storage:', e);
+
+        // Fallback to current input values
+        columnFilters.forEach((filter, columnName) => {
+            const columnIndex = currentColumns.indexOf(columnName) + 1;
+            const input = document.getElementById(`col-search-${columnIndex}`);
+            if (input) {
+                searchValues.set(columnIndex, {
+                    value: input.value,
+                    cursorStart: input.selectionStart,
+                    cursorEnd: input.selectionEnd
+                });
+            }
+        });
+    }
+
     isRenderScheduled = true;
     requestAnimationFrame(() => {
         renderPaginatedTable();
         isRenderScheduled = false;
+
+        // Restore UI state after render
+        setTimeout(() => {
+            // Restore search input values and cursor position
+            searchValues.forEach((state, columnIndex) => {
+                const input = document.getElementById(`col-search-${columnIndex}`);
+                if (input) {
+                    const restoredValue = state.value || '';
+                    const cursorPos = state.cursorEnd || state.value?.length || 0;
+
+                    console.log(`Restoring search input col-${columnIndex} with value: "${restoredValue}"`);
+                    input.value = restoredValue;
+                    input.setSelectionRange(cursorPos, cursorPos);
+                }
+            });
+
+            // Restore focus
+            if (activeElementId) {
+                const elementToFocus = document.getElementById(activeElementId);
+                if (elementToFocus) {
+                    elementToFocus.focus();
+                }
+            }
+
+            // Restore dropdown state with proper positioning
+            if (activeDropdown !== null) {
+                const button = document.getElementById(`col-filter-btn-${activeDropdown}`);
+                const dropdown = document.getElementById(`col-filter-dropdown-${activeDropdown}`);
+                if (button && dropdown) {
+                    // Calculate position for the dropdown
+                    const buttonRect = button.getBoundingClientRect();
+                    dropdown.style.top = `${buttonRect.bottom + window.scrollY + 2}px`;
+                    dropdown.style.left = `${buttonRect.left + window.scrollX}px`;
+                    dropdown.style.width = `${Math.max(200, Math.min(300, buttonRect.width))}px`;
+                    dropdown.classList.add('show');
+                }
+            }
+        }, 50); // Increased delay to ensure DOM is fully ready after sorting
+    });
+}
+
+// Generate only the table body HTML (no headers)
+function generateTableBody() {
+    if (!paginatedRows.length) return '<tbody></tbody>';
+
+    // Get actual row numbers (considering pagination)
+    const startRowNum = (currentPage - 1) * pageSize + 1;
+
+    let html = '<tbody>';
+    paginatedRows.forEach((row, index) => {
+        const rowNum = startRowNum + index;
+        html += `<tr><td><strong>${rowNum}</strong></td>`;
+
+        currentColumns.forEach(col => {
+            const cellValue = row[col] || '';
+            const displayValue = window.AllmightyUtils.escapeHtml(window.AllmightyUtils.formatValue(cellValue));
+
+            // Handle cell expansion for long content
+            if (typeof cellValue === 'string' && cellValue.length > 200) {
+                const cellId = `cell-${rowNum}-${currentColumns.indexOf(col)}`;
+                const isExpanded = expandedCells.has(cellId);
+                const shortValue = displayValue.substring(0, 200) + '...';
+                const fullValue = displayValue;
+
+                html += `<td>
+                    <div class="cell-content ${isExpanded ? 'expanded' : ''}" id="${cellId}">
+                        <span class="cell-text">${isExpanded ? fullValue : shortValue}</span>
+                        ${cellValue.length > 200 ? `
+                            <button class="expand-btn" onclick="toggleCellExpansion('${cellId}')" title="${isExpanded ? 'Click to collapse' : 'Click to expand'}">
+                                ${isExpanded ? '▼' : '▶'}
+                            </button>
+                        ` : ''}
+                    </div>
+                </td>`;
+            } else {
+                html += `<td>${displayValue}</td>`;
+            }
+        });
+
+        html += '</tr>';
+    });
+    html += '</tbody>';
+
+    return html;
+}
+
+// Background update that doesn't recreate search inputs
+function performBackgroundUpdate() {
+    console.log('Performing background data update without recreating search inputs');
+
+    // Update data silently without triggering full re-render
+    applyFiltersWithoutRender();
+    updatePagination();
+
+    // Update only the table body, preserving headers with search inputs
+    requestAnimationFrame(() => {
+        const tableContainer = document.getElementById('tableContainer');
+        if (tableContainer) {
+            const table = tableContainer.querySelector('table');
+            if (table) {
+                const tbody = table.querySelector('tbody');
+                if (tbody) {
+                    // Generate new tbody content
+                    const newTbodyHtml = generateTableBody();
+                    tbody.innerHTML = newTbodyHtml;
+                    console.log('Background table body update completed');
+                }
+            }
+        }
     });
 }
 
@@ -644,7 +955,7 @@ function generateTableHeader(columns) {
         const arrayClass = isArrayIndex ? ' array-index' : '';
         const sortIndicator = sortColumn === col ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : '';
 
-        html += `<th class="${hierarchyClass}${arrayClass}" onclick="toggleColumnSort('${col}')" title="Click to sort by ${window.AllmightyUtils.escapeHtml(col)}">${window.AllmightyUtils.escapeHtml(col)}${sortIndicator}</th>`;
+        html += `<th class="${hierarchyClass}${arrayClass}" onclick="toggleColumnSort('${col}')" title="Click to sort by ${window.AllmightyUtils.escapeHtml(col)}"><div class="header-chip">${window.AllmightyUtils.escapeHtml(col)}<span class="sort-indicator">${sortIndicator}</span></div></th>`;
     });
     html += '</tr></thead>';
     return html;
@@ -998,9 +1309,208 @@ function showPathSelection(paths) {
     };
 }
 
+// Handle "Go to column" dropdown search functionality
+window.searchAndGoToColumn = function(e) {
+    // Handle both event and direct input
+    const input = (e && e.target) ? e.target : (e && e.value) ? e : null;
+
+    // If no valid input found, try to get it by ID
+    if (!input) {
+        return;
+    }
+
+    const searchTerm = (input.value || '').trim().toLowerCase();
+    const suggestions = document.getElementById('columnSuggestions');
+
+    // Get columns from availableColumns or currentColumns
+    const columns = availableColumns.length > 0 ? availableColumns : currentColumns;
+
+    if (!columns.length) {
+        showNoColumnsMessage();
+        return;
+    }
+
+    // Filter columns with "like" style search (contains, case-insensitive)
+    const filteredColumns = columns.filter(col => {
+        if (!searchTerm) return true; // Show all when search is empty
+        return col.toLowerCase().includes(searchTerm);
+    });
+
+    // Sort results: exact matches first, then alphabetical
+    filteredColumns.sort((a, b) => {
+        const aLower = a.toLowerCase();
+        const bLower = b.toLowerCase();
+        const aExact = aLower === searchTerm;
+        const bExact = bLower === searchTerm;
+
+        if (aExact && !bExact) return -1;
+        if (!aExact && bExact) return 1;
+        return a.localeCompare(b);
+    });
+
+    if (filteredColumns.length > 0) {
+        showColumnDropdown(filteredColumns, searchTerm);
+    } else {
+        showNoResultsMessage(searchTerm);
+    }
+};
+
+// Show column dropdown with filtered results
+function showColumnDropdown(columns, searchTerm) {
+    const suggestions = document.getElementById('columnSuggestions');
+    if (!suggestions) return;
+
+    const htmlContent = columns.map((col, index) => {
+        // Highlight matching parts
+        let displayName = col;
+        if (searchTerm && searchTerm.length > 0) {
+            const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            displayName = col.replace(regex, '<mark class="bg-yellow-200">$1</mark>');
+        }
+
+        // Show column hierarchy with indentation
+        const level = getColumnLevel(col);
+        const indentClass = level > 0 ? `suggestion-level-${Math.min(level, 4)}` : '';
+
+        return `
+            <div class="suggestion-item ${indentClass} hover:bg-gray-50 cursor-pointer"
+                 onclick="goToColumn('${col}')"
+                 role="option">
+                <div class="flex items-center gap-2 p-2.5">
+                    <span class="column-name flex-1">${displayName}</span>
+                    <span class="text-xs text-gray-400">Col ${index + 1}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    suggestions.innerHTML = htmlContent;
+    suggestions.classList.remove('hidden');
+    suggestions.classList.add('show');
+}
+
+// Show message when no columns are available
+function showNoColumnsMessage() {
+    const suggestions = document.getElementById('columnSuggestions');
+    if (!suggestions) return;
+
+    suggestions.innerHTML = `
+        <div class="suggestion-item p-4 text-gray-500 text-center">
+            <div class="flex items-center gap-2 justify-center">
+                <span>📊</span>
+                <span>No columns available</span>
+            </div>
+            <div class="text-xs text-gray-400 mt-2">
+                Convert JSON data first to see columns
+            </div>
+        </div>
+    `;
+
+    suggestions.classList.remove('hidden');
+    suggestions.classList.add('show');
+}
+
+// Show message when no search results found
+function showNoResultsMessage(searchTerm) {
+    const suggestions = document.getElementById('columnSuggestions');
+    if (!suggestions) return;
+
+    suggestions.innerHTML = `
+        <div class="suggestion-item p-4 text-gray-500 text-center">
+            <div class="flex items-center gap-2 justify-center">
+                <span>🔍</span>
+                <span>No columns found for "${searchTerm}"</span>
+            </div>
+            <div class="text-xs text-gray-400 mt-2">
+                Try a different search term
+            </div>
+        </div>
+    `;
+
+    suggestions.classList.remove('hidden');
+    suggestions.classList.add('show');
+}
+
+// Get column nesting level for indentation
+function getColumnLevel(columnName) {
+    return (columnName.match(/\./g) || []).length;
+}
+
+// Go to column with enhanced navigation
+window.goToColumn = function(columnName) {
+    hideColumnDropdown();
+
+    const searchInput = document.getElementById('columnSearch');
+    if (searchInput) {
+        searchInput.value = columnName;
+    }
+
+    // Find the column index in the table
+    const table = document.querySelector('table');
+    if (!table) return;
+
+    const headers = table.querySelectorAll('th');
+    let columnIndex = -1;
+
+    headers.forEach((header, index) => {
+        const headerChip = header.querySelector('.header-chip');
+        const headerText = headerChip ? headerChip.textContent.trim() : header.textContent.trim();
+
+        if (headerText === columnName) {
+            columnIndex = index;
+        }
+    });
+
+    if (columnIndex === -1) return;
+
+    // Scroll to the column with smooth animation
+    const tableContainer = document.getElementById('tableContainer');
+    if (tableContainer) {
+        const header = headers[columnIndex];
+        if (header) {
+            const headerLeft = header.offsetLeft;
+            const containerWidth = tableContainer.clientWidth;
+            const headerWidth = header.offsetWidth;
+            const scrollTarget = headerLeft - (containerWidth / 2) + (headerWidth / 2);
+
+            tableContainer.scrollTo({
+                left: Math.max(0, scrollTarget),
+                behavior: 'smooth'
+            });
+        }
+    }
+
+    // Highlight the column temporarily
+    highlightColumn(columnIndex);
+
+    // Show success message
+    window.AllmightyUtils.showSuccess(`🎯 Jumped to column "${columnName}" (${columnIndex + 1})`);
+    setTimeout(() => {
+        window.AllmightyUtils.clearAllToasts();
+    }, 3000);
+};
+
+// Hide column dropdown
+function hideColumnDropdown() {
+    const suggestions = document.getElementById('columnSuggestions');
+    if (suggestions) {
+        suggestions.classList.remove('show');
+        suggestions.classList.add('hidden');
+    }
+}
+
+// Hide dropdown when clicking outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#columnSearch') && !e.target.closest('#columnSuggestions')) {
+        hideColumnDropdown();
+    }
+});
+
 // Make functions globally available
 window.showPathExplorer = showPathExplorer;
 window.extractJsonPath = extractJsonPath;
+window.searchAndGoToColumn = searchAndGoToColumn;
+window.goToColumn = goToColumn;
 
 // Main conversion function with async processing
 async function convertJsonToTable() {
@@ -1068,6 +1578,18 @@ async function convertJsonToTable() {
         currentColumns = Array.from(columns).sort();
         availableColumns = currentColumns;
 
+        // Initialize filtered data and clear filters
+        filteredData = [...currentRows];
+        columnFilters.clear();
+        allUniqueValues.clear();
+
+        // Clear session storage search state
+        try {
+            sessionStorage.removeItem(STORAGE_KEYS.COLUMN_SEARCH);
+        } catch (e) {
+            console.error('Failed to clear search state from session storage:', e);
+        }
+
         // Reset pagination
         currentPage = 1;
 
@@ -1091,6 +1613,9 @@ async function convertJsonToTable() {
         } else {
             window.AllmightyUtils.showSuccess('Converted full JSON data');
         }
+
+        // Refresh column search dropdown with new columns
+        refreshColumnSearch();
 
     } catch (error) {
         window.AllmightyUtils.showError(`Invalid JSON: ${error.message}`);
@@ -1216,6 +1741,18 @@ function generateTable(data, sortColumn = null, sortDirection = 'asc') {
     currentRows = rows;
     currentColumns = Array.from(columns).sort();
 
+    // Initialize filtered data and clear filters
+    filteredData = [...currentRows];
+    columnFilters.clear();
+    allUniqueValues.clear();
+
+    // Clear session storage search state
+    try {
+        sessionStorage.removeItem(STORAGE_KEYS.COLUMN_SEARCH);
+    } catch (e) {
+        console.error('Failed to clear search state from session storage:', e);
+    }
+
     // Apply sorting if specified
     if (sortColumn && currentColumns.includes(sortColumn)) {
         rows = sortRows(rows, sortColumn, sortDirection);
@@ -1229,7 +1766,7 @@ function generateTable(data, sortColumn = null, sortDirection = 'asc') {
         const arrayClass = isArrayIndex ? ' array-index' : '';
         const sortIndicator = sortColumn === col ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : '';
 
-        html += `<th class="${hierarchyClass}${arrayClass}" onclick="toggleColumnSort('${col}')" title="Click to sort by ${window.AllmightyUtils.escapeHtml(col)}">${window.AllmightyUtils.escapeHtml(col)}${sortIndicator}</th>`;
+        html += `<th class="${hierarchyClass}${arrayClass}" onclick="toggleColumnSort('${col}')" title="Click to sort by ${window.AllmightyUtils.escapeHtml(col)}"><div class="header-chip">${window.AllmightyUtils.escapeHtml(col)}<span class="sort-indicator">${sortIndicator}</span></div></th>`;
     });
     html += '</tr></thead><tbody>';
 
@@ -1278,11 +1815,17 @@ function toggleColumnSort(column) {
         sortDirection = 'asc';
     }
 
-    // Regenerate table with sorting
-    const tableHtml = generateTable(currentData, sortColumn, sortDirection);
-    const tableContainer = document.getElementById('tableContainer');
-    if (tableContainer) {
-        tableContainer.innerHTML = tableHtml;
+    // Re-sort current rows instead of regenerating from scratch
+    if (currentRows.length > 0) {
+        console.log(`Sorting column "${column}" in direction "${sortDirection}"`);
+        currentRows = sortRows(currentRows, sortColumn, sortDirection);
+
+        // Apply filters and update pagination
+        applyAllFilters();
+
+        // Use scheduleTableRender to ensure search inputs are restored
+        console.log('Calling scheduleTableRender after sorting');
+        scheduleTableRender();
     }
 
     // Log sorting action
@@ -1561,7 +2104,470 @@ console.log('JSON to Table module loaded successfully with functions:', {
     changePageSize: typeof window.changePageSize
 });
 
+// Extract unique values from a column (optimized)
+function extractUniqueValues(columnName) {
+    if (!currentRows || currentRows.length === 0) return [];
+
+    const values = new Set();
+    const maxValues = 1000; // Limit for performance
+
+    // Use for loop instead of forEach for better performance
+    for (let i = 0; i < currentRows.length && values.size < maxValues; i++) {
+        const row = currentRows[i];
+        const value = row[columnName];
+        if (value !== null && value !== undefined) {
+            const stringValue = String(value);
+            // Skip very long values for performance
+            if (stringValue.length <= 100) {
+                values.add(stringValue);
+            }
+        }
+    }
+
+    // Convert to array and sort
+    const result = Array.from(values);
+
+    // If there are many values, just return the first portion
+    if (result.length > 500) {
+        return result.slice(0, 500).sort();
+    }
+
+    return result.sort();
+}
+
+// Generate filter options HTML
+function generateFilterOptions(columnName, values) {
+    const filter = columnFilters.get(columnName);
+    const selectedValues = filter?.values || new Set();
+
+    return values.map(value => {
+        const escapedValue = window.AllmightyUtils.escapeHtml(value);
+        const isChecked = selectedValues.has(value);
+        const shortValue = escapedValue.length > 50 ? escapedValue.substring(0, 47) + '...' : escapedValue;
+
+        return `
+            <div class="column-filter-option ${isChecked ? 'selected' : ''}"
+                 onclick="toggleFilterValue('${window.AllmightyUtils.escapeHtml(columnName)}', '${escapedValue.replace(/'/g, "\\'")}', event)">
+                <input type="checkbox"
+                       ${isChecked ? 'checked' : ''}
+                       onclick="event.stopPropagation()">
+                <span title="${escapedValue}">${shortValue}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+// Handle column header search filtering functionality
+window.filterByColumn = function(columnIndex, columnName, searchValue) {
+    // Clear existing timeout for this column
+    if (searchTimeouts.has(columnIndex)) {
+        clearTimeout(searchTimeouts.get(columnIndex));
+    }
+
+    // Mark search as dirty to trigger render when input loses focus
+    isSearchDirty = true;
+
+    // Debounced save to session storage and trigger filtering
+    const timeoutId = setTimeout(() => {
+        try {
+            // Get current search state from session storage
+            const searchState = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.COLUMN_SEARCH) || '{}');
+
+            // Update the specific column search
+            searchState[columnName] = searchValue;
+
+            // Save back to session storage
+            sessionStorage.setItem(STORAGE_KEYS.COLUMN_SEARCH, JSON.stringify(searchState));
+
+            // Trigger filtering if no input is currently focused
+            if (focusedColumnInput === null) {
+                applySearchFromStorage();
+            }
+        } catch (e) {
+            console.error('Failed to save search state to session storage:', e);
+        }
+    }, 100); // 100ms debounce for saving
+
+    searchTimeouts.set(columnIndex, timeoutId);
+};
+
+// Handle column header search input focus
+window.setColumnSearchFocus = function(columnIndex) {
+    focusedColumnInput = columnIndex;
+
+    // Clear any pending render timeout
+    if (renderTimeoutId) {
+        clearTimeout(renderTimeoutId);
+        renderTimeoutId = null;
+    }
+}
+
+// Handle column header search input blur
+window.setColumnSearchBlur = function(columnIndex) {
+    focusedColumnInput = null;
+
+    // Schedule a render after a short delay to process any pending changes
+    if (renderTimeoutId) {
+        clearTimeout(renderTimeoutId);
+    }
+
+    renderTimeoutId = setTimeout(() => {
+        if (isSearchDirty) {
+            performTableRender();
+            isSearchDirty = false;
+        }
+    }, 200); // Short delay to allow for any debounced search to complete
+}
+
+// Initialize session storage listener for search changes
+function initializeSearchListener() {
+    // Listen for storage changes (works across tabs)
+    window.addEventListener('storage', (e) => {
+        if (e.key === STORAGE_KEYS.COLUMN_SEARCH) {
+            applySearchFromStorage();
+        }
+    });
+
+    // Also listen for changes in the same tab (storage event doesn't fire in same tab)
+    const originalSetItem = sessionStorage.setItem;
+    sessionStorage.setItem = function(key, value) {
+        originalSetItem.call(this, key, value);
+        if (key === STORAGE_KEYS.COLUMN_SEARCH) {
+            // Dispatch custom event for same-tab communication
+            window.dispatchEvent(new CustomEvent('sessionStorageChange', {
+                detail: { key, value }
+            }));
+        }
+    };
+
+    // Listen for custom events
+    window.addEventListener('sessionStorageChange', (e) => {
+        if (e.detail.key === STORAGE_KEYS.COLUMN_SEARCH) {
+            applySearchFromStorage();
+        }
+    });
+}
+
+// Apply search filters from session storage
+function applySearchFromStorage() {
+    try {
+        const searchState = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.COLUMN_SEARCH) || '{}');
+
+        let hasChanges = false;
+
+        // Update column filters from session storage
+        Object.entries(searchState).forEach(([columnName, searchValue]) => {
+            const filter = columnFilters.get(columnName) || { search: '', values: new Set() };
+
+            // Test if search value is valid regex when it contains regex characters
+            if (searchValue && /[*+?^${}()|[\]\\]/.test(searchValue)) {
+                try {
+                    new RegExp(searchValue);
+                    filter.search = searchValue;
+                } catch (e) {
+                    // Invalid regex, treat as literal search
+                    filter.search = searchValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                }
+            } else {
+                filter.search = searchValue;
+            }
+
+            columnFilters.set(columnName, filter);
+            hasChanges = true;
+        });
+
+        // Clear filters for columns that are no longer in search state
+        columnFilters.forEach((filter, columnName) => {
+            if (!searchState.hasOwnProperty(columnName) && filter.search) {
+                filter.search = '';
+                columnFilters.set(columnName, filter);
+                hasChanges = true;
+            }
+        });
+
+        if (hasChanges) {
+            applyFiltersWithoutRender();
+            updatePagination();
+
+            if (focusedColumnInput !== null) {
+                // Input is focused, mark as dirty and use background update
+                console.log(`Input col-${focusedColumnInput} is focused, using background update`);
+                isSearchDirty = true;
+                performBackgroundUpdate();
+            } else {
+                // No input focused, use normal render
+                scheduleTableRender();
+            }
+        }
+    } catch (e) {
+        console.error('Failed to apply search from session storage:', e);
+    }
+}
+
+// Apply filters without triggering immediate render
+function applyFiltersWithoutRender() {
+    if (!currentRows || currentRows.length === 0) {
+        filteredData = [];
+        return;
+    }
+
+    filteredData = currentRows.filter(row => {
+        // Check each column filter
+        for (const [columnName, filter] of columnFilters.entries()) {
+            const cellValue = row[columnName];
+            const cellString = cellValue !== null && cellValue !== undefined ? String(cellValue) : '';
+
+            // Apply search filter
+            if (filter.search) {
+                let matches = false;
+                try {
+                    const regex = new RegExp(filter.search, 'i');
+                    matches = regex.test(cellString);
+                } catch (e) {
+                    // Fallback to literal search if regex is invalid
+                    matches = cellString.toLowerCase().includes(filter.search.toLowerCase());
+                }
+
+                if (!matches) return false;
+            }
+
+            // Apply value filter
+            if (filter.values.size > 0) {
+                if (!filter.values.has(cellString)) return false;
+            }
+        }
+
+        return true;
+    });
+
+    // Reset to first page
+    currentPage = 1;
+}
+
+// Toggle column filter dropdown
+function toggleColumnFilter(columnIndex, columnName, event) {
+    event.stopPropagation();
+
+    const button = document.getElementById(`col-filter-btn-${columnIndex}`);
+    const dropdown = document.getElementById(`col-filter-dropdown-${columnIndex}`);
+    const allDropdowns = document.querySelectorAll('.column-filter-dropdown');
+
+    // Close all other dropdowns
+    allDropdowns.forEach(d => {
+        if (d !== dropdown) d.classList.remove('show');
+    });
+
+    // Toggle current dropdown and store state
+    const willBeOpen = !dropdown.classList.contains('show');
+    if (willBeOpen) {
+        openDropdownColumn = columnIndex;
+
+        // Calculate position for the dropdown
+        const buttonRect = button.getBoundingClientRect();
+        dropdown.style.top = `${buttonRect.bottom + window.scrollY + 2}px`;
+        dropdown.style.left = `${buttonRect.left + window.scrollX}px`;
+        dropdown.style.width = `${Math.max(220, Math.min(350, buttonRect.width))}px`;
+
+        dropdown.classList.add('show');
+
+        // Show loading state immediately
+        const optionsContainer = document.getElementById(`col-filter-options-${columnIndex}`);
+        if (optionsContainer) {
+            optionsContainer.innerHTML = `
+                <div class="dropdown-loading">
+                    <div class="dropdown-loading-spinner"></div>
+                    <div>Loading unique values...</div>
+                </div>
+            `;
+        }
+
+        // Extract unique values asynchronously if not already done
+        if (!allUniqueValues.has(columnName)) {
+            // Use setTimeout to make it non-blocking
+            setTimeout(() => {
+                const uniqueValues = extractUniqueValues(columnName);
+                allUniqueValues.set(columnName, uniqueValues);
+
+                // Update the filter options
+                if (optionsContainer) {
+                    optionsContainer.innerHTML = generateFilterOptions(columnName, uniqueValues);
+                }
+            }, 0);
+        } else {
+            // Values already exist, show them immediately
+            const uniqueValues = allUniqueValues.get(columnName);
+            if (optionsContainer) {
+                optionsContainer.innerHTML = generateFilterOptions(columnName, uniqueValues);
+            }
+        }
+
+        // Close dropdown when clicking outside
+        setTimeout(() => {
+            const closeHandler = function(e) {
+                if (!dropdown.contains(e.target) && !button.contains(e.target)) {
+                    dropdown.classList.remove('show');
+                    openDropdownColumn = null;
+                    document.removeEventListener('click', closeHandler);
+                }
+            };
+            document.addEventListener('click', closeHandler);
+        }, 100);
+    } else {
+        openDropdownColumn = null;
+        dropdown.classList.remove('show');
+    }
+}
+
+// Toggle individual filter value
+function toggleFilterValue(columnName, value, event) {
+    event.stopPropagation();
+
+    const filter = columnFilters.get(columnName) || { search: '', values: new Set() };
+
+    if (filter.values.has(value)) {
+        filter.values.delete(value);
+    } else {
+        filter.values.add(value);
+    }
+
+    columnFilters.set(columnName, filter);
+
+    // Update the UI
+    event.target.closest('.column-filter-option').classList.toggle('selected');
+    const checkbox = event.target.closest('.column-filter-option').querySelector('input[type="checkbox"]');
+    if (checkbox) checkbox.checked = filter.values.has(value);
+
+    // Update filter count
+    const columnIndex = currentColumns.indexOf(columnName) + 1;
+    const countElement = document.getElementById(`col-filter-count-${columnIndex}`);
+    const buttonElement = document.getElementById(`col-filter-btn-${columnIndex}`);
+
+    if (countElement && buttonElement) {
+        const count = filter.values.size;
+        countElement.textContent = count > 0 ? count : '';
+        buttonElement.classList.toggle('active', count > 0);
+    }
+
+    applyAllFilters();
+}
+
+// Select all filter values for a column
+function selectAllFilterValues(columnName) {
+    const uniqueValues = allUniqueValues.get(columnName) || [];
+    const filter = columnFilters.get(columnName) || { search: '', values: new Set() };
+
+    uniqueValues.forEach(value => filter.values.add(value));
+    columnFilters.set(columnName, filter);
+
+    // Update UI
+    const columnIndex = currentColumns.indexOf(columnName) + 1;
+    const optionsContainer = document.getElementById(`col-filter-options-${columnIndex}`);
+    if (optionsContainer) {
+        optionsContainer.querySelectorAll('.column-filter-option').forEach(option => {
+            option.classList.add('selected');
+            const checkbox = option.querySelector('input[type="checkbox"]');
+            if (checkbox) checkbox.checked = true;
+        });
+    }
+
+    // Update filter count
+    const countElement = document.getElementById(`col-filter-count-${columnIndex}`);
+    const buttonElement = document.getElementById(`col-filter-btn-${columnIndex}`);
+    if (countElement && buttonElement) {
+        countElement.textContent = uniqueValues.length;
+        buttonElement.classList.add('active');
+    }
+
+    applyAllFilters();
+}
+
+// Deselect all filter values for a column
+function deselectAllFilterValues(columnName) {
+    const filter = columnFilters.get(columnName) || { search: '', values: new Set() };
+    filter.values.clear();
+    columnFilters.set(columnName, filter);
+
+    // Update UI
+    const columnIndex = currentColumns.indexOf(columnName) + 1;
+    const optionsContainer = document.getElementById(`col-filter-options-${columnIndex}`);
+    if (optionsContainer) {
+        optionsContainer.querySelectorAll('.column-filter-option').forEach(option => {
+            option.classList.remove('selected');
+            const checkbox = option.querySelector('input[type="checkbox"]');
+            if (checkbox) checkbox.checked = false;
+        });
+    }
+
+    // Update filter count
+    const countElement = document.getElementById(`col-filter-count-${columnIndex}`);
+    const buttonElement = document.getElementById(`col-filter-btn-${columnIndex}`);
+    if (countElement && buttonElement) {
+        countElement.textContent = '';
+        buttonElement.classList.remove('active');
+    }
+
+    applyAllFilters();
+}
+
+// Apply all column filters and searches
+function applyAllFilters() {
+    if (!currentRows || currentRows.length === 0) {
+        filteredData = [];
+        updatePagination();
+        scheduleTableRender();
+        return;
+    }
+
+    filteredData = currentRows.filter(row => {
+        // Check each column filter
+        for (const [columnName, filter] of columnFilters.entries()) {
+            const cellValue = row[columnName];
+            const cellString = cellValue !== null && cellValue !== undefined ? String(cellValue) : '';
+
+            // Apply search filter
+            if (filter.search) {
+                let matches = false;
+                try {
+                    const regex = new RegExp(filter.search, 'i');
+                    matches = regex.test(cellString);
+                } catch (e) {
+                    // Fallback to literal search if regex is invalid
+                    matches = cellString.toLowerCase().includes(filter.search.toLowerCase());
+                }
+
+                if (!matches) return false;
+            }
+
+            // Apply value filter
+            if (filter.values.size > 0) {
+                if (!filter.values.has(cellString)) return false;
+            }
+        }
+
+        return true;
+    });
+
+    // Reset to first page and re-render
+    currentPage = 1;
+    updatePagination();
+    scheduleTableRender();
+}
+
+// Clear all column filters
+function clearAllColumnFilters() {
+    columnFilters.clear();
+    allUniqueValues.clear();
+    filteredData = [...currentRows];
+    updatePagination();
+    scheduleTableRender();
+}
+
 // Make additional functions globally available
 window.selectColumn = selectColumn;
 window.goToPage = goToPage;
 window.changePageSize = changePageSize;
+window.toggleColumnFilter = toggleColumnFilter;
+window.filterByColumn = filterByColumn;
+window.toggleFilterValue = toggleFilterValue;
+window.selectAllFilterValues = selectAllFilterValues;
+window.deselectAllFilterValues = deselectAllFilterValues;

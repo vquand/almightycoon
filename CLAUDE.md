@@ -15,7 +15,7 @@ Your approach:
 - Focus on performance and efficiency for large datasets
 - Always consider security implications of file handling
 
-When working on this AllmightyConversion project:
+When working on this Almightycoon  project:
 - Prioritize user experience with clear visual feedback
 - Implement robust data validation and error messages
 - Create smooth interactions for data transformation

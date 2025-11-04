@@ -42,39 +42,105 @@ function tryParseJson(str) {
     return null;
 }
 
-// Show error message
-function showError(message, containerId = 'messageArea') {
-    const messageArea = document.getElementById(containerId);
-    if (messageArea) {
-        messageArea.innerHTML = `<div class="error-message">❌ ${message}</div>`;
+// Toast Notification System
+function showToast(message, type = 'info', options = {}) {
+    const {
+        duration = type === 'error' ? 8000 : 5000,  // Errors stay longer
+        persistent = false,  // Auto-dismiss by default
+        icon = getDefaultIcon(type)
+    } = options;
+
+    const toastContainer = document.getElementById('toastContainer');
+    if (!toastContainer) {
+        console.warn('Toast container not found');
+        return;
+    }
+
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <span class="toast-icon">${icon}</span>
+        <span class="toast-content">${escapeHtml(message)}</span>
+        <button class="toast-close" onclick="removeToast(this.parentElement)" title="Dismiss">
+            ✕
+        </button>
+    `;
+
+    // Add to container
+    toastContainer.appendChild(toast);
+
+    // Auto-dismiss if not persistent
+    if (!persistent && duration > 0) {
+        setTimeout(() => {
+            removeToast(toast);
+        }, duration);
+    }
+
+    // Limit maximum toasts (keep only latest 5)
+    const toasts = toastContainer.querySelectorAll('.toast:not(.removing)');
+    if (toasts.length > 5) {
+        const oldestToast = toasts[0];
+        removeToast(oldestToast);
+    }
+
+    return toast;
+}
+
+// Remove toast with animation
+function removeToast(toast) {
+    if (!toast || toast.classList.contains('removing')) return;
+
+    toast.classList.add('removing');
+
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.parentElement.removeChild(toast);
+        }
+    }, 300); // Match animation duration
+}
+
+// Get default icon for toast type
+function getDefaultIcon(type) {
+    const icons = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+    };
+    return icons[type] || icons.info;
+}
+
+// Convenience functions for different toast types
+function showError(message, options = {}) {
+    return showToast(message, 'error', { ...options, persistent: true });
+}
+
+function showSuccess(message, options = {}) {
+    return showToast(message, 'success', options);
+}
+
+function showWarning(message, options = {}) {
+    return showToast(message, 'warning', options);
+}
+
+function showInfo(message, options = {}) {
+    return showToast(message, 'info', options);
+}
+
+// Clear all toasts
+function clearAllToasts() {
+    const toastContainer = document.getElementById('toastContainer');
+    if (toastContainer) {
+        const toasts = toastContainer.querySelectorAll('.toast');
+        toasts.forEach(toast => removeToast(toast));
     }
 }
 
-// Show success message
-function showSuccess(message, containerId = 'messageArea') {
-    const messageArea = document.getElementById(containerId);
-    if (messageArea) {
-        messageArea.innerHTML = `<div class="success-message">✅ ${message}</div>`;
-        messageArea.classList.add('show');
-    }
-}
-
-// Show info message
-function showInfo(message, containerId = 'messageArea') {
-    const messageArea = document.getElementById(containerId);
-    if (messageArea) {
-        messageArea.innerHTML = `<div class="success-message">ℹ️ ${message}</div>`;
-        messageArea.classList.add('show');
-    }
-}
-
-// Clear all messages
+// Legacy message functions (for backward compatibility)
 function clearMessages(containerId = 'messageArea') {
-    const messageArea = document.getElementById(containerId);
-    if (messageArea) {
-        messageArea.innerHTML = '';
-        messageArea.classList.remove('show');
-    }
+    // Clear all toasts instead of old message area
+    clearAllToasts();
 }
 
 // Tab switching functionality
@@ -191,9 +257,13 @@ window.AllmightyUtils = {
     escapeHtml,
     formatValue,
     tryParseJson,
+    showToast,
     showError,
     showSuccess,
+    showWarning,
     showInfo,
+    removeToast,
+    clearAllToasts,
     clearMessages,
     switchTab,
     escapeCsvValue,
@@ -202,3 +272,6 @@ window.AllmightyUtils = {
     toggleExportControls,
     clearAll
 };
+
+// Make removeToast globally available for inline onclick handlers
+window.removeToast = removeToast;

@@ -1,0 +1,29 @@
+{
+  "name": "almightycoon",
+  "version": "1.0.0",
+  "description": "A powerful, client-side data conversion tool that works entirely offline in your browser.",
+  "main": "index.html",
+  "scripts": {
+    "build-css": "tailwindcss -i ./src/input.css -o ./css/styles.css --watch",
+    "build-css-prod": "tailwindcss -i ./src/input.css -o ./css/styles.css --minify",
+    "serve": "npx http-server . -p 8000 -o",
+    "dev": "concurrently \"npm run build-css\" \"npm run serve\"",
+    "build": "npm run build-css-prod"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.16",
+    "concurrently": "^9.2.1",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.0"
+  },
+  "keywords": [
+    "json",
+    "converter",
+    "table",
+    "offline",
+    "browser",
+    "data-transformation"
+  ],
+  "author": "Almightycoon Team",
+  "license": "MIT"
+}

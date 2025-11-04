@@ -233,3 +233,132 @@ window.Almightycoon = {
 
 // Auto-initialize the application
 initApp();
+
+// Resizable panels functionality
+function initResizablePanels() {
+    const leftPanel = document.querySelector('.left-panel');
+    const rightPanel = document.querySelector('.right-panel');
+    const resizeDivider = document.getElementById('resizeDivider');
+    const mainContainer = document.querySelector('.main-container');
+
+    
+    if (!leftPanel || !rightPanel || !resizeDivider || !mainContainer) {
+        console.warn('Resizable panels: Required elements not found');
+        return;
+    }
+
+    let isResizing = false;
+    let startX = 0;
+    let startLeftWidth = 0;
+
+    // Mouse down on divider
+    resizeDivider.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startLeftWidth = leftPanel.offsetWidth;
+
+        // Add visual feedback
+        resizeDivider.classList.add('resizing');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    // Mouse move
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+
+        const deltaX = e.clientX - startX;
+        const containerWidth = mainContainer.offsetWidth;
+        const newLeftWidth = startLeftWidth + deltaX;
+
+        // Calculate percentage
+        const leftPercentage = (newLeftWidth / containerWidth) * 100;
+
+        // Enforce min/max constraints (in pixels)
+        const minLeftWidth = 300;
+        const maxLeftWidth = containerWidth * 0.7;
+
+        if (newLeftWidth >= minLeftWidth && newLeftWidth <= maxLeftWidth) {
+            leftPanel.style.width = `${leftPercentage}%`;
+
+            // Store the preference in localStorage
+            localStorage.setItem('almightycoon-leftPanelWidth', `${leftPercentage}%`);
+        }
+    });
+
+    // Mouse up
+    document.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            resizeDivider.classList.remove('resizing');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+    });
+
+    // Load saved width preference
+    const savedWidth = localStorage.getItem('almightycoon-leftPanelWidth');
+    if (savedWidth) {
+        leftPanel.style.width = savedWidth;
+    }
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+        // When window resizes, maintain the percentage width
+        const currentWidth = leftPanel.style.width;
+        if (currentWidth && currentWidth.includes('%')) {
+            // Keep the current percentage
+            leftPanel.style.width = currentWidth;
+        }
+    });
+
+    // Touch support for mobile devices
+    let touchStartX = 0;
+    let touchStartLeftWidth = 0;
+
+    resizeDivider.addEventListener('touchstart', (e) => {
+        isResizing = true;
+        touchStartX = e.touches[0].clientX;
+        touchStartLeftWidth = leftPanel.offsetWidth;
+
+        resizeDivider.classList.add('resizing');
+        e.preventDefault();
+    });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!isResizing) return;
+
+        const deltaX = e.touches[0].clientX - touchStartX;
+        const containerWidth = mainContainer.offsetWidth;
+        const newLeftWidth = touchStartLeftWidth + deltaX;
+
+        const leftPercentage = (newLeftWidth / containerWidth) * 100;
+
+        const minLeftWidth = 300;
+        const maxLeftWidth = containerWidth * 0.7;
+
+        if (newLeftWidth >= minLeftWidth && newLeftWidth <= maxLeftWidth) {
+            leftPanel.style.width = `${leftPercentage}%`;
+            localStorage.setItem('almightycoon-leftPanelWidth', `${leftPercentage}%`);
+        }
+    });
+
+    document.addEventListener('touchend', () => {
+        if (isResizing) {
+            isResizing = false;
+            resizeDivider.classList.remove('resizing');
+        }
+    });
+
+    console.log('✅ Resizable panels initialized');
+}
+
+// Initialize resizable panels when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initResizablePanels);
+} else {
+    initResizablePanels();
+}
