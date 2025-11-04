@@ -6,9 +6,11 @@
 // Global state for this module
 let currentData = null;
 let currentRows = [];
+let originalRows = []; // Store original unsorted rows
 let currentColumns = [];
 let sortColumn = null;
-let sortDirection = 'asc'; // 'asc' or 'desc'
+let sortDirection = null; // 'asc', 'desc', or null (no sort)
+let lastSortColumn = null; // Track last clicked column for cycle continuation
 let expandedCells = new Set();
 
 // Pagination state
@@ -48,7 +50,8 @@ let isSearchDirty = false;
 // Session storage keys for decoupled communication
 const STORAGE_KEYS = {
     COLUMN_SEARCH: 'almightycoon_column_search',
-    COLUMN_FILTERS: 'almightycoon_column_filters'
+    COLUMN_FILTERS: 'almightycoon_column_filters',
+    UNIQUE_VALUES: 'almightycoon_unique_values'
 };
 
 // Virtual scrolling state
@@ -58,12 +61,162 @@ let virtualRowHeight = 35; // pixels
 let virtualVisibleRows = 0;
 let virtualScrollPosition = 0;
 
+// Compute and cache unique values for all columns
+function computeAndCacheUniqueValues(rows, columns) {
+    if (!rows || rows.length === 0 || !columns || columns.length === 0) {
+        console.log('[CACHE] No data or columns, skipping unique values computation');
+        return;
+    }
+
+    console.log(`[CACHE] Computing unique values for ${columns.length} columns from ${rows.length} rows`);
+
+    const uniqueValuesMap = {};
+
+    // Compute unique values for each column
+    columns.forEach(columnName => {
+        const values = new Set();
+
+        rows.forEach(row => {
+            const value = row[columnName];
+            const stringValue = value !== null && value !== undefined ? String(value) : '';
+            values.add(stringValue);
+        });
+
+        uniqueValuesMap[columnName] = Array.from(values).sort();
+        console.log(`[CACHE] Column "${columnName}": ${uniqueValuesMap[columnName].length} unique values`);
+    });
+
+    // Save to session storage
+    try {
+        sessionStorage.setItem(STORAGE_KEYS.UNIQUE_VALUES, JSON.stringify(uniqueValuesMap));
+        console.log(`[CACHE] Successfully cached unique values for ${Object.keys(uniqueValuesMap).length} columns`);
+
+        // Also store in memory for faster access
+        allUniqueValues.clear();
+        Object.entries(uniqueValuesMap).forEach(([columnName, values]) => {
+            allUniqueValues.set(columnName, values);
+        });
+
+    } catch (e) {
+        console.error('[CACHE] Failed to cache unique values:', e);
+        // Fallback to in-memory storage only
+        allUniqueValues.clear();
+        Object.entries(uniqueValuesMap).forEach(([columnName, values]) => {
+            allUniqueValues.set(columnName, values);
+        });
+    }
+}
+
+// Restore all filter button colors and placeholders after table re-render
+function restoreAllFilterButtonStates() {
+    const columnFilters = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.COLUMN_FILTERS) || '{}');
+
+    currentColumns.forEach((columnName, index) => {
+        const columnIndex = index + 1; // +1 because column 0 is the row number
+        updateFilterHeaderControls(columnIndex, columnName);
+    });
+
+    console.log('Restored all filter button states after table re-render');
+}
+
+// Update filter button color and input placeholder together
+function updateFilterHeaderControls(columnIndex, columnName) {
+    const button = document.getElementById(`col-filter-btn-${columnIndex}`);
+    const searchInput = document.getElementById(`col-search-${columnIndex}`);
+
+    const columnFilters = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.COLUMN_FILTERS) || '{}');
+    const filter = columnFilters[columnName] || { values: [] };
+    const filterCount = filter.values ? filter.values.length : 0;
+
+    // Update button color
+    if (filterCount > 0) {
+        button.className = 'btn btn-danger btn-sm';
+    } else {
+        button.className = 'btn btn-outline-primary btn-sm';
+    }
+
+    // Update placeholder and make input read-only when filters are active
+    if (searchInput) {
+        searchInput.placeholder = generateFilterPlaceholder(columnName);
+        searchInput.readOnly = filterCount > 0;
+        searchInput.title = filterCount > 0 ?
+            'Clear filters to search again' :
+            'Search with regex or click filter button for options';
+    }
+}
+
+// Generate placeholder text showing selected filter options
+function generateFilterPlaceholder(columnName) {
+    const columnFilters = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.COLUMN_FILTERS) || '{}');
+    const filter = columnFilters[columnName] || { values: [] };
+    const selectedValues = filter.values || [];
+
+    if (selectedValues.length === 0) {
+        return 'Search...';
+    } else if (selectedValues.length === 1) {
+        return `Filtered: ${selectedValues[0]}`;
+    } else if (selectedValues.length <= 3) {
+        return `Filtered: ${selectedValues.join(', ')}`;
+    } else {
+        return `Filtered: ${selectedValues.slice(0, 2).join(', ')} +${selectedValues.length - 2} more`;
+    }
+}
+
+// Check if a column contains primarily numeric data
+function isNumericColumn(columnName) {
+    if (!currentRows || currentRows.length === 0) return false;
+
+    // Sample first 10 rows to determine if column is numeric
+    const sampleSize = Math.min(10, currentRows.length);
+    let numericCount = 0;
+
+    for (let i = 0; i < sampleSize; i++) {
+        const value = currentRows[i][columnName];
+        if (value !== null && value !== undefined && value !== '') {
+            const stringValue = String(value).trim();
+            // Check if it's a valid number (int, float, or currency)
+            if (/^-?\d+\.?\d*$/.test(stringValue) ||
+                /^\$?-?\d+\.?\d*$/.test(stringValue) ||
+                /^-?\d+\.?\d*%?$/.test(stringValue)) {
+                numericCount++;
+            }
+        }
+    }
+
+    // If more than 70% of non-null values are numeric, consider it a numeric column
+    return numericCount / sampleSize > 0.7;
+}
+
+// Get unique values from cache (session storage or memory)
+function getUniqueValuesFromCache(columnName) {
+    // Try memory first (fastest)
+    if (allUniqueValues.has(columnName)) {
+        return allUniqueValues.get(columnName);
+    }
+
+    // Try session storage
+    try {
+        const cachedValues = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.UNIQUE_VALUES) || '{}');
+        if (cachedValues[columnName]) {
+            // Load into memory for future use
+            allUniqueValues.set(columnName, cachedValues[columnName]);
+            return cachedValues[columnName];
+        }
+    } catch (e) {
+        console.warn('[CACHE] Failed to retrieve cached values from storage:', e);
+    }
+
+    console.warn(`[CACHE] No cached values found for column "${columnName}"`);
+    return [];
+}
+
 // Initialize the JSON to Table module
 function initJsonToTable() {
     // Clear session storage on page load to ensure fresh state
     try {
         sessionStorage.removeItem(STORAGE_KEYS.COLUMN_FILTERS);
         sessionStorage.removeItem(STORAGE_KEYS.COLUMN_SEARCH);
+        sessionStorage.removeItem(STORAGE_KEYS.UNIQUE_VALUES);
         console.log('[INIT] Session storage cleared');
     } catch (e) {
         console.warn('[INIT] Failed to clear session storage:', e);
@@ -504,7 +657,8 @@ function resetUI() {
     currentRows = [];
     currentColumns = [];
     sortColumn = null;
-    sortDirection = 'asc';
+    sortDirection = null;
+    lastSortColumn = null;
     currentPage = 1;
     availableColumns = [];
     filteredColumns = [];
@@ -551,43 +705,40 @@ function generatePaginatedTableHTML(rows, columns) {
     // Get actual row numbers (considering pagination)
     const startRowNum = (currentPage - 1) * pageSize + 1;
 
-    let html = '<table><thead><tr><th style="min-width: 60px; max-width: 60px;">#</th>';
+    let html = '<table class="table table-striped table-hover table-bordered"><thead><tr><th style="min-width: 60px; max-width: 60px;">#</th>';
     columns.forEach((col, index) => {
         const hierarchyClass = getColumnHierarchyClass(col);
         const isArrayIndex = col.match(/\[\d+\]$/);
         const arrayClass = isArrayIndex ? ' array-index' : '';
-        const sortIndicator = sortColumn === col ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : '';
+        const sortIndicator = sortColumn === col ? (sortDirection === 'asc' ? ' ↑' : (sortDirection === 'desc' ? ' ↓' : '')) : '';
         const columnIndex = index + 1; // +1 because column 0 is the row number
 
-        const uniqueValues = allUniqueValues.get(col) || [];
+        const uniqueValues = getUniqueValuesFromCache(col) || [];
         const filterCount = (columnFilters.get(col)?.values?.size || 0);
         const hasActiveFilter = filterCount > 0;
 
         html += `
         <th class="${hierarchyClass}${arrayClass}" style="min-width: 200px; max-width: 300px;">
             <div class="column-controls">
-                <div style="display: flex; gap: 4px; align-items: center; margin-bottom: 4px;">
+                <div class="d-flex gap-1 align-items-center mb-1">
                     <input type="text"
-                           class="column-search-box"
-                           style="flex: 1; min-width: 0;"
+                           class="form-control form-control-sm"
                            id="col-search-${columnIndex}"
-                           placeholder="Search (regex)..."
+                           placeholder="${generateFilterPlaceholder(col)}"
                            onkeyup="filterByColumn(${columnIndex}, '${window.AllmightyUtils.escapeHtml(col)}', this.value)"
                            onfocus="setColumnSearchFocus(${columnIndex})"
                            onblur="setColumnSearchBlur(${columnIndex})"
                            onclick="event.stopPropagation()">
-                    <button class="column-filter-button ${hasActiveFilter ? 'active' : ''}"
+                    <button class="btn ${hasActiveFilter ? 'btn-danger' : 'btn-outline-primary'} btn-sm"
                             id="col-filter-btn-${columnIndex}"
-                            onclick="showColumnUniqueValues(${columnIndex}, '${window.AllmightyUtils.escapeHtml(col)}', event)"
-                            style="flex-shrink: 0; padding: 4px 6px;">
-                        <span>v</span>
-                        <span id="col-filter-count-${columnIndex}">${filterCount > 0 ? filterCount : ''}</span>
+                            onclick="showColumnUniqueValues(${columnIndex}, '${window.AllmightyUtils.escapeHtml(col)}', event)">
+                        <span id="col-filter-icon-${columnIndex}">${filterCount > 0 ? `${filterCount} x` : 'v'}</span>
                     </button>
                 </div>
                 <div class="column-filter-dropdown" id="col-filter-dropdown-${columnIndex}">
-                    <div class="filter-controls">
-                        <button class="filter-control-button" onclick="clearColumnFilter(${columnIndex}, '${window.AllmightyUtils.escapeHtml(col)}')">Clear</button>
-                        <button class="filter-control-button" onclick="applyColumnFilter(${columnIndex}, '${window.AllmightyUtils.escapeHtml(col)}')">Apply</button>
+                    <div class="d-flex gap-2 p-2 border-bottom">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="clearColumnFilter(${columnIndex}, '${window.AllmightyUtils.escapeHtml(col)}')">Clear</button>
+                        <button class="btn btn-primary btn-sm" onclick="applyColumnFilter(${columnIndex}, '${window.AllmightyUtils.escapeHtml(col)}')">Apply</button>
                     </div>
                     <div id="col-filter-options-${columnIndex}">
                         ${generateFilterOptions(col, uniqueValues)}
@@ -730,6 +881,9 @@ function performTableRender() {
                     dropdown.classList.add('show');
                 }
             }
+
+            // Restore all filter button colors and placeholders after table re-render
+            restoreAllFilterButtonStates();
         }, 50); // Increased delay to ensure DOM is fully ready after sorting
     });
 }
@@ -749,6 +903,8 @@ function generateTableBody() {
         currentColumns.forEach(col => {
             const cellValue = row[col] || '';
             const displayValue = window.AllmightyUtils.escapeHtml(window.AllmightyUtils.formatValue(cellValue));
+            const isNumeric = isNumericColumn(col);
+            const textClass = isNumeric ? 'text-end' : '';
 
             // Handle cell expansion for long content
             if (typeof cellValue === 'string' && cellValue.length > 200) {
@@ -757,7 +913,7 @@ function generateTableBody() {
                 const shortValue = displayValue.substring(0, 200) + '...';
                 const fullValue = displayValue;
 
-                html += `<td>
+                html += `<td class="${textClass}">
                     <div class="cell-content ${isExpanded ? 'expanded' : ''}" id="${cellId}">
                         <span class="cell-text">${isExpanded ? fullValue : shortValue}</span>
                         ${cellValue.length > 200 ? `
@@ -768,7 +924,7 @@ function generateTableBody() {
                     </div>
                 </td>`;
             } else {
-                html += `<td>${displayValue}</td>`;
+                html += `<td class="${textClass}">${displayValue}</td>`;
             }
         });
 
@@ -962,7 +1118,7 @@ function generateTableHeader(columns) {
         const hierarchyClass = getColumnHierarchyClass(col);
         const isArrayIndex = col.match(/\[\d+\]$/);
         const arrayClass = isArrayIndex ? ' array-index' : '';
-        const sortIndicator = sortColumn === col ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : '';
+        const sortIndicator = sortColumn === col ? (sortDirection === 'asc' ? ' ↑' : (sortDirection === 'desc' ? ' ↓' : '')) : '';
 
         html += `<th class="${hierarchyClass}${arrayClass}" onclick="toggleColumnSort('${col}')" title="Click to sort by ${window.AllmightyUtils.escapeHtml(col)}"><div class="header-chip">${window.AllmightyUtils.escapeHtml(col)}<span class="sort-indicator">${sortIndicator}</span></div></th>`;
     });
@@ -975,8 +1131,10 @@ function showProcessingState(message = 'Processing...') {
     const tableContainer = document.getElementById('tableContainer');
     if (tableContainer) {
         tableContainer.innerHTML = `
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; color: #666;">
-                <div style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px;"></div>
+            <div class="d-flex flex-column align-items-center justify-content-center" style="height: 200px; color: #666;">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
                 <div>${message}</div>
             </div>
             <style>
@@ -1010,8 +1168,10 @@ function showLoadingState() {
             color: #666;
         `;
         overlay.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <div style="width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <div class="d-flex align-items-center gap-2">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
                 <span>Loading...</span>
             </div>
         `;
@@ -1270,17 +1430,17 @@ function showPathSelection(paths) {
     `;
 
     modal.innerHTML = `
-        <h3 style="margin: 0 0 15px 0; color: #2c3e50;">🔍 Explore JSON Paths</h3>
-        <p style="margin: 0 0 15px 0; color: #666; font-size: 14px;">Select a path to extract specific data, or use full JSON:</p>
-        <div style="margin-bottom: 15px;">
-            <select id="pathSelect" size="8" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;">
+        <h3 class="h5 mb-3">🔍 Explore JSON Paths</h3>
+        <p class="text-muted small mb-3">Select a path to extract specific data, or use full JSON:</p>
+        <div class="mb-3">
+            <select id="pathSelect" size="8" class="form-select font-monospace" style="height: auto;">
                 <option value="">📄 Use full JSON (no path)</option>
                 ${paths.map(path => `<option value="${path}">📂 ${path}</option>`).join('')}
             </select>
         </div>
-        <div style="display: flex; gap: 10px; justify-content: flex-end;">
-            <button onclick="cancelPathSelection()" style="padding: 8px 16px; border: 1px solid #ddd; background: #f8f9fa; border-radius: 4px; cursor: pointer;">Cancel</button>
-            <button onclick="selectPathAndClose()" style="padding: 8px 16px; border: none; background: #4facfe; color: white; border-radius: 4px; cursor: pointer;">Select & Close</button>
+        <div class="d-flex gap-2 justify-content-end">
+            <button class="btn btn-outline-secondary btn-sm" onclick="cancelPathSelection()">Cancel</button>
+            <button class="btn btn-primary btn-sm" onclick="selectPathAndClose()">Select & Close</button>
         </div>
     `;
 
@@ -1592,6 +1752,9 @@ async function convertJsonToTable() {
         columnFilters.clear();
         allUniqueValues.clear();
 
+        // Compute and cache unique values for all columns
+        computeAndCacheUniqueValues(rows, currentColumns);
+
         // Clear session storage search state
         try {
             sessionStorage.removeItem(STORAGE_KEYS.COLUMN_SEARCH);
@@ -1731,7 +1894,7 @@ async function processDataAsync(data) {
 }
 
 // Generate table from JSON data
-function generateTable(data, sortColumn = null, sortDirection = 'asc') {
+function generateTable(data, sortColumn = null, sortDirection = null) {
     let rows = [];
     let columns = new Set();
 
@@ -1748,6 +1911,7 @@ function generateTable(data, sortColumn = null, sortDirection = 'asc') {
 
     // Store for sorting
     currentRows = rows;
+    originalRows = [...rows]; // Store original unsorted rows
     currentColumns = Array.from(columns).sort();
 
     // Initialize filtered data and clear filters
@@ -1768,12 +1932,12 @@ function generateTable(data, sortColumn = null, sortDirection = 'asc') {
     }
 
     // Generate HTML
-    let html = '<table><thead><tr><th>#</th>';
+    let html = '<table class="table table-striped table-hover table-bordered"><thead><tr><th>#</th>';
     currentColumns.forEach(col => {
         const hierarchyClass = getColumnHierarchyClass(col);
         const isArrayIndex = col.match(/\[\d+\]$/);
         const arrayClass = isArrayIndex ? ' array-index' : '';
-        const sortIndicator = sortColumn === col ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : '';
+        const sortIndicator = sortColumn === col ? (sortDirection === 'asc' ? ' ↑' : (sortDirection === 'desc' ? ' ↓' : '')) : '';
 
         html += `<th class="${hierarchyClass}${arrayClass}" onclick="toggleColumnSort('${col}')" title="Click to sort by ${window.AllmightyUtils.escapeHtml(col)}"><div class="header-chip">${window.AllmightyUtils.escapeHtml(col)}<span class="sort-indicator">${sortIndicator}</span></div></th>`;
     });
@@ -1783,7 +1947,10 @@ function generateTable(data, sortColumn = null, sortDirection = 'asc') {
         html += `<tr><td><strong>${index + 1}</strong></td>`;
         currentColumns.forEach(col => {
             const cellValue = row[col] || '';
-            html += `<td>${window.AllmightyUtils.escapeHtml(window.AllmightyUtils.formatValue(cellValue))}</td>`;
+            const displayValue = window.AllmightyUtils.escapeHtml(window.AllmightyUtils.formatValue(cellValue));
+            const isNumeric = isNumericColumn(col);
+            const textClass = isNumeric ? 'text-end' : '';
+            html += `<td class="${textClass}">${displayValue}</td>`;
         });
         html += '</tr>';
     });
@@ -1815,19 +1982,38 @@ function sortRows(rows, column, direction) {
 
 // Toggle column sorting
 function toggleColumnSort(column) {
-    if (sortColumn === column) {
-        // Toggle direction if same column
-        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    if (lastSortColumn === column && sortColumn === null) {
+        // Continuing cycle after clearing: start with asc
+        sortColumn = column;
+        sortDirection = 'asc';
+    } else if (sortColumn === column) {
+        // Three-state cycle: asc -> desc -> none -> asc
+        if (sortDirection === 'asc') {
+            sortDirection = 'desc';
+        } else if (sortDirection === 'desc') {
+            // Clear sorting
+            sortColumn = null;
+            sortDirection = null; // Set to null to indicate no sort
+        }
     } else {
         // New column, default to ascending
         sortColumn = column;
         sortDirection = 'asc';
     }
 
+    // Always track the last clicked column
+    lastSortColumn = column;
+
     // Re-sort current rows instead of regenerating from scratch
     if (currentRows.length > 0) {
-        console.log(`Sorting column "${column}" in direction "${sortDirection}"`);
-        currentRows = sortRows(currentRows, sortColumn, sortDirection);
+        if (sortColumn) {
+            console.log(`Sorting column "${column}" in direction "${sortDirection}"`);
+            currentRows = sortRows(currentRows, sortColumn, sortDirection);
+        } else {
+            console.log('Clearing sorting, restoring original order');
+            // Restore original order by regenerating table
+            currentRows = [...originalRows];
+        }
 
         // Apply filters and update pagination
         applyAllFilters();
@@ -1839,7 +2025,11 @@ function toggleColumnSort(column) {
 
     // Log sorting action
     if (window.AllmightyConversion && window.AllmightyConversion.config && window.AllmightyConversion.config.debug) {
-        console.log(`Sorting by ${column} (${sortDirection})`);
+        if (sortColumn) {
+            console.log(`Sorting by ${column} (${sortDirection})`);
+        } else {
+            console.log('Sorting cleared');
+        }
     }
 }
 
@@ -2363,12 +2553,7 @@ function applyFiltersWithoutRender() {
 window.showColumnUniqueValues = function(columnIndex, columnName, event) {
     event.stopPropagation();
 
-    // Add click counter to debug double-click issue
-    if (!window.clickCounter) window.clickCounter = {};
-    if (!window.clickCounter[columnName]) window.clickCounter[columnName] = 0;
-    window.clickCounter[columnName]++;
-
-    console.log(`[V-CLICK] #${window.clickCounter[columnName]} ${columnName}`);
+    console.log(`[V-CLICK] ${columnName}`);
 
     const button = document.getElementById(`col-filter-btn-${columnIndex}`);
     const dropdown = document.getElementById(`col-filter-dropdown-${columnIndex}`);
@@ -2392,84 +2577,14 @@ window.showColumnUniqueValues = function(columnIndex, columnName, event) {
         return;
     }
 
-    // Create or get dedicated dropdown container
-    let dropdownContainer = document.getElementById('almightycoon-dropdown-container');
-    if (!dropdownContainer) {
-        dropdownContainer = document.createElement('div');
-        dropdownContainer.id = 'almightycoon-dropdown-container';
-        dropdownContainer.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            pointer-events: none;
-            z-index: 9999999;
-        `;
-        document.body.appendChild(dropdownContainer);
-        console.log('Created dedicated dropdown container');
-    }
-
-    // Debug dropdown state
-    const optionsContainerBeforeMove = dropdown.querySelector(`#col-filter-options-${columnIndex}`);
-    const needsMove = dropdown.parentNode !== dropdownContainer;
-    const isAlreadyVisible = dropdown.classList.contains('show') && optionsContainerBeforeMove && optionsContainerBeforeMove.children.length > 0;
-
-    console.log(`[DROPDOWN-BEFORE] move=${needsMove} options=${optionsContainerBeforeMove ? optionsContainerBeforeMove.children.length : 0} visible=${isAlreadyVisible}`);
-
-    // If dropdown is already visible and positioned correctly with options, just regenerate options
-    if (isAlreadyVisible && !needsMove) {
-        console.log(`[DROPDOWN-SKIP] Already positioned and visible with options, regenerating options only`);
-        dropdown.classList.add('show');
-        delete window.tempFilterSelections[columnName];
-
-        // Generate options and update checkboxes
-        generateUniqueValueOptionsExcludingColumn(columnIndex, columnName);
-        updateDropdownCheckboxes(columnIndex, columnName);
-        return;
-    }
-
-    // Move dropdown to dedicated container
-    if (needsMove) {
-        console.log('Dropdown before move - ID:', dropdown.id);
-        console.log('Dropdown before move - HTML:', dropdown.innerHTML);
-        console.log('Dropdown before move - Children count:', dropdown.children.length);
-
-        // Store original parent for cleanup
-        const originalParent = dropdown.parentNode;
-
-        dropdownContainer.appendChild(dropdown);
-
-        // Check options container state after move
-        const optionsContainerAfterMove = dropdown.querySelector(`#col-filter-options-${columnIndex}`);
-        console.log(`[DROPDOWN-AFTER] options=${optionsContainerAfterMove ? optionsContainerAfterMove.children.length : 0}`);
-
-        // Clean up any remaining dropdown references in original location
-        // This prevents duplicates and confusion when table is re-rendered
-        const originalLocationDropdowns = originalParent.querySelectorAll(`#${dropdown.id}`);
-        if (originalLocationDropdowns.length > 1) {
-            // Remove duplicates, keep only the one we moved
-            originalLocationDropdowns.forEach((duplicate, index) => {
-                if (index > 0) { // Keep first (the one we moved), remove others
-                    duplicate.remove();
-                    console.log('Removed duplicate dropdown from original location');
-                }
-            });
-        }
-    }
-
-    // Calculate position using the dedicated container
+    // Simple positioning relative to button
     const buttonRect = button.getBoundingClientRect();
 
     dropdown.style.position = 'fixed';
     dropdown.style.top = `${buttonRect.bottom + 2}px`;
     dropdown.style.left = `${buttonRect.left}px`;
     dropdown.style.width = `${Math.max(220, Math.min(300, buttonRect.width))}px`;
-    dropdown.style.pointerEvents = 'auto'; // Enable pointer events for dropdown itself
-
-    // Check if positioning affected the options container
-    const optionsAfterPositioning = dropdown.querySelector(`#col-filter-options-${columnIndex}`);
-    console.log(`[DROPDOWN-POSITIONED] ${columnName} optionsAfterPosition=${optionsAfterPositioning ? optionsAfterPositioning.children.length : 0}`);
+    dropdown.style.zIndex = '999999';
 
     dropdown.classList.add('show');
     console.log(`[DROPDOWN-SHOW] ${columnName} show class added`);
@@ -2478,34 +2593,16 @@ window.showColumnUniqueValues = function(columnIndex, columnName, event) {
     delete window.tempFilterSelections[columnName];
 
     // Generate unique values from data with all filters EXCEPT the current column
-    // This shows all available options that respect other column filters, but allows changing this column's filter
-    // IMPORTANT: Do this AFTER the dropdown is moved to avoid race conditions
     console.log(`[V-GEN] ${columnName}`);
 
-    // Use a small delay when dropdown needed repositioning to ensure DOM is stable
-    if (needsMove) {
-        setTimeout(() => {
-            console.log(`[V-GEN-DELAYED] ${columnName}`);
-            generateUniqueValueOptionsExcludingColumn(columnIndex, columnName);
-            updateDropdownCheckboxes(columnIndex, columnName);
+    generateUniqueValueOptionsExcludingColumn(columnIndex, columnName);
+    updateDropdownCheckboxes(columnIndex, columnName);
 
-            // Ensure dropdown remains visible after delayed generation
-            setTimeout(() => {
-                dropdown.classList.add('show');
-                console.log(`[DROPDOWN-RESHOW] ${columnName} ensured visible after delayed generation`);
-            }, 0);
-        }, 10);
-    } else {
-        console.log(`[V-GEN-IMMEDIATE] ${columnName} (no positioning needed)`);
-        generateUniqueValueOptionsExcludingColumn(columnIndex, columnName);
-        updateDropdownCheckboxes(columnIndex, columnName);
-
-        // Ensure dropdown remains visible after immediate generation
-        setTimeout(() => {
-            dropdown.classList.add('show');
-            console.log(`[DROPDOWN-RESHOW] ${columnName} ensured visible after immediate generation`);
-        }, 0);
-    }
+    // Ensure dropdown is visible after generation
+    setTimeout(() => {
+        dropdown.classList.add('show');
+        console.log(`[DROPDOWN-RESHOW] ${columnName} ensured visible`);
+    }, 50);
 
     // Remove any existing global click handler to avoid duplicates
     if (window.currentDropdownHandler) {
@@ -2584,25 +2681,36 @@ function generateUniqueValueOptionsExcludingColumn(columnIndex, columnName, isCl
         return true;
     });
 
-    // Extract unique values for this column from the filtered data
-    const values = new Set();
-    dataToShow.forEach(row => {
-        const value = row[columnName];
-        if (value !== null && value !== undefined) {
-            values.add(String(value));
-        }
-    });
+    // Get unique values from cache (computed once during JSON load)
+    const cachedValues = getUniqueValuesFromCache(columnName);
 
-    // Convert to array and sort
-    const uniqueValues = Array.from(values).sort((a, b) => {
-        // Try numeric sort first, fallback to string sort
-        const aNum = parseFloat(a);
-        const bNum = parseFloat(b);
-        if (!isNaN(aNum) && !isNaN(bNum)) {
-            return aNum - bNum;
-        }
-        return a.localeCompare(b);
-    });
+    // If we have no cached values, fall back to computing from filtered data
+    let uniqueValues;
+    if (cachedValues.length > 0) {
+        uniqueValues = cachedValues;
+        console.log(`[CACHE-HIT] ${columnName} using ${uniqueValues.length} cached values`);
+    } else {
+        console.log(`[CACHE-MISS] ${columnName} computing from filtered data`);
+        // Fallback: Extract unique values from filtered data
+        const values = new Set();
+        dataToShow.forEach(row => {
+            const value = row[columnName];
+            if (value !== null && value !== undefined) {
+                values.add(String(value));
+            }
+        });
+
+        // Convert to array and sort
+        uniqueValues = Array.from(values).sort((a, b) => {
+            // Try numeric sort first, fallback to string sort
+            const aNum = parseFloat(a);
+            const bNum = parseFloat(b);
+            if (!isNaN(aNum) && !isNaN(bNum)) {
+                return aNum - bNum;
+            }
+            return a.localeCompare(b);
+        });
+    }
 
     // Generate HTML using the existing template
     const maxOptions = 100;
@@ -2896,15 +3004,15 @@ function updateDropdownCheckboxes(columnIndex, columnName) {
 // Update filter button appearance based on temporary selections
 function updateFilterButtonAppearanceTemp(columnIndex, columnName) {
     const button = document.getElementById(`col-filter-btn-${columnIndex}`);
-    const countSpan = document.getElementById(`col-filter-count-${columnIndex}`);
+    const iconSpan = document.getElementById(`col-filter-icon-${columnIndex}`);
 
     // Use temporary selections to show count
     const tempValues = window.tempFilterSelections[columnName] || [];
     const filterCount = tempValues.length;
 
     if (filterCount > 0) {
-        button.classList.add('active');
-        countSpan.textContent = filterCount;
+        button.className = 'btn btn-danger btn-sm';
+        iconSpan.textContent = `${filterCount} x`;
     } else {
         // Check if there are applied filters when no temp selections
         const columnFilters = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.COLUMN_FILTERS) || '{}');
@@ -2912,11 +3020,11 @@ function updateFilterButtonAppearanceTemp(columnIndex, columnName) {
         const appliedCount = appliedFilter.values ? appliedFilter.values.length : 0;
 
         if (appliedCount > 0) {
-            button.classList.add('active');
-            countSpan.textContent = appliedCount;
+            button.className = 'btn btn-danger btn-sm';
+            iconSpan.textContent = `${appliedCount} x`;
         } else {
-            button.classList.remove('active');
-            countSpan.textContent = '';
+            button.className = 'btn btn-outline-primary btn-sm';
+            iconSpan.textContent = 'v';
         }
     }
 
@@ -2926,7 +3034,7 @@ function updateFilterButtonAppearanceTemp(columnIndex, columnName) {
 // Update filter button appearance based on active filters
 function updateFilterButtonAppearance(columnIndex, columnName) {
     const button = document.getElementById(`col-filter-btn-${columnIndex}`);
-    const countSpan = document.getElementById(`col-filter-count-${columnIndex}`);
+    const iconSpan = document.getElementById(`col-filter-icon-${columnIndex}`);
 
     const columnFilters = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.COLUMN_FILTERS) || '{}');
     const filter = columnFilters[columnName] || { values: [] };
@@ -2934,11 +3042,11 @@ function updateFilterButtonAppearance(columnIndex, columnName) {
     const filterCount = filter.values ? filter.values.length : 0;
 
     if (filterCount > 0) {
-        button.classList.add('active');
-        countSpan.textContent = filterCount;
+        button.className = 'btn btn-danger btn-sm';
+        iconSpan.textContent = `${filterCount} x`;
     } else {
-        button.classList.remove('active');
-        countSpan.textContent = '';
+        button.className = 'btn btn-outline-primary btn-sm';
+        iconSpan.textContent = 'v';
     }
 
     console.log('Updated button appearance:', { columnName, filterCount });
@@ -2967,8 +3075,9 @@ window.clearColumnFilter = function(columnIndex, columnName) {
     // This will create completely new HTML elements
     generateUniqueValueOptionsExcludingColumn(columnIndex, columnName, true);
 
-    // Update button appearance to show cleared state
+    // Update button appearance and placeholder to show cleared state
     updateFilterButtonAppearanceTemp(columnIndex, columnName);
+    updateFilterHeaderControls(columnIndex, columnName);
 
     // Ensure dropdown stays visible after clearing
     const dropdownElement = document.getElementById(`col-filter-dropdown-${columnIndex}`);
@@ -3004,8 +3113,9 @@ window.applyColumnFilter = function(columnIndex, columnName) {
     // Apply filters and update table
     applyAllFilters();
 
-    // Update button appearance to show applied filter count
+    // Update button appearance and placeholder to show applied filter count
     updateFilterButtonAppearance(columnIndex, columnName);
+    updateFilterHeaderControls(columnIndex, columnName);
 
     // Close dropdown
     const dropdown = document.getElementById(`col-filter-dropdown-${columnIndex}`);
@@ -3067,7 +3177,7 @@ function toggleColumnFilter(columnIndex, columnName, event) {
             }, 0);
         } else {
             // Values already exist, show them immediately
-            const uniqueValues = allUniqueValues.get(columnName);
+            const uniqueValues = getUniqueValuesFromCache(columnName);
             if (optionsContainer) {
                 optionsContainer.innerHTML = generateFilterOptions(columnName, uniqueValues);
             }
@@ -3125,7 +3235,7 @@ function toggleFilterValue(columnName, value, event) {
 
 // Select all filter values for a column
 function selectAllFilterValues(columnName) {
-    const uniqueValues = allUniqueValues.get(columnName) || [];
+    const uniqueValues = getUniqueValuesFromCache(columnName) || [];
     const columnFilters = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.COLUMN_FILTERS) || '{}');
     const filter = columnFilters[columnName] || { search: '', values: [] };
 
