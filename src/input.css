@@ -216,20 +216,24 @@
     }
 
     .column-filter-button {
-        @apply bg-white/20 border border-white/30 text-white;
+        @apply bg-blue-800 border border-blue-800 text-white;
         @apply py-0.5 px-1 rounded text-xs cursor-pointer;
         @apply flex items-center gap-0.5 transition-all duration-200 flex-shrink-0;
-        @apply hover:bg-white/30 hover:border-white/50;
+        @apply hover:bg-blue-900 hover:border-blue-900;
     }
 
     .column-filter-button.active {
-        @apply bg-white/90 text-gray-800 border-white;
+        @apply bg-blue-900 text-white border-blue-900;
     }
 
     .column-filter-dropdown {
-        @apply fixed bg-white border-2 border-primary-500;
-        @apply max-h-[250px] overflow-y-auto z-[99999] hidden;
+        @apply bg-white border-2 border-primary-500;
+        @apply max-h-[250px] overflow-y-auto z-[999999] hidden;
         @apply shadow-lg rounded-lg min-w-[220px] max-w-[350px];
+    }
+
+    .column-filter-dropdown.show {
+        @apply block;
     }
 
     .dropdown-loading {
@@ -242,17 +246,27 @@
     }
 
     .column-filter-option {
-        @apply py-1.5 px-2 cursor-pointer border-b border-gray-100;
-        @apply text-sm text-gray-800 flex items-center gap-1.5;
-        @apply hover:bg-gray-50;
+        @apply py-2 px-3 cursor-pointer border-b border-gray-100;
+        @apply text-sm text-gray-800 flex items-center justify-between;
+        @apply hover:bg-gray-50 transition-colors duration-150;
     }
 
     .column-filter-option.selected {
-        @apply bg-primary-500 text-white;
+        @apply bg-blue-500 text-white;
+        @apply hover:bg-blue-600;
     }
 
-    .column-filter-option input[type="checkbox"] {
-        @apply m-0 cursor-pointer;
+    .option-text {
+        @apply flex-1 truncate;
+    }
+
+    .selection-indicator {
+        @apply w-4 h-4 flex items-center justify-center text-xs font-medium;
+        @apply bg-gray-200 text-gray-600 rounded;
+    }
+
+    .column-filter-option.selected .selection-indicator {
+        @apply bg-white text-blue-500;
     }
 
     .column-filter-count {
@@ -264,9 +278,10 @@
     }
 
     .filter-control-button {
-        @apply py-0.5 px-1 bg-white/15 border border-white/20 text-white;
-        @apply rounded cursor-pointer text-[9px] transition-all duration-200;
-        @apply hover:bg-white/25;
+        @apply py-1 px-2 bg-gray-100 border border-gray-300 text-gray-800;
+        @apply rounded cursor-pointer text-xs font-medium transition-all duration-200;
+        @apply hover:bg-gray-200 hover:border-gray-400;
+        @apply shadow-sm;
     }
 
     .toast-container {

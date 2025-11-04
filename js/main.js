@@ -165,8 +165,9 @@ function setupErrorHandling() {
     // Handle uncaught errors
     window.addEventListener('error', (event) => {
         console.error('Uncaught error:', event.error);
-        if (AppConfig.debug) {
-            window.AllmightyUtils.showError(`Error: ${event.error.message}`);
+        if (AppConfig.debug && event.error) {
+            const errorMessage = event.error.message || 'Unknown error occurred';
+            window.AllmightyUtils.showError(`Error: ${errorMessage}`);
         }
     });
 }
