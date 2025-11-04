@@ -1,0 +1,113 @@
+{
+  "errorCodes": {
+    "V001": {
+      "code": "V-CLICK",
+      "meaning": "[v] button clicked - tracks click count for debugging double-click issue",
+      "category": "USER_ACTION",
+      "severity": "INFO"
+    },
+    "V002": {
+      "code": "V-GEN",
+      "meaning": "Starting option generation for [v] button dropdown",
+      "category": "USER_ACTION",
+      "severity": "INFO"
+    },
+    "V003": {
+      "code": "V-UPDATE",
+      "meaning": "Updating checkbox states for [v] button dropdown",
+      "category": "USER_ACTION",
+      "severity": "INFO"
+    },
+    "G001": {
+      "code": "GEN-START",
+      "meaning": "Starting option generation process",
+      "category": "DATA_PROCESSING",
+      "severity": "INFO"
+    },
+    "G002": {
+      "code": "GEN-ERROR",
+      "meaning": "Options container not found - critical error preventing dropdown",
+      "category": "ERROR",
+      "severity": "HIGH"
+    },
+    "G003": {
+      "code": "GEN-DATA",
+      "meaning": "Data processing results - shows filtered/unique/limited counts",
+      "category": "DATA_PROCESSING",
+      "severity": "INFO"
+    },
+    "G004": {
+      "code": "GEN-HTML",
+      "meaning": "HTML generation completed - shows HTML length",
+      "category": "UI_RENDERING",
+      "severity": "INFO"
+    },
+    "G005": {
+      "code": "GEN-RESULT",
+      "meaning": "Option generation result - shows final children count",
+      "category": "UI_RENDERING",
+      "severity": "INFO"
+    },
+    "C001": {
+      "code": "CLEAR",
+      "meaning": "Clear button clicked - removing column filter",
+      "category": "USER_ACTION",
+      "severity": "INFO"
+    },
+    "D001": {
+      "code": "DROPDOWN-BEFORE",
+      "meaning": "Dropdown state before move - shows if move needed and option count",
+      "category": "UI_STATE",
+      "severity": "INFO"
+    },
+    "D002": {
+      "code": "DROPDOWN-AFTER",
+      "meaning": "Dropdown state after move - shows final option count",
+      "category": "UI_STATE",
+      "severity": "INFO"
+    },
+    "U001": {
+      "code": "CHECK-START",
+      "meaning": "Starting checkbox state update process",
+      "category": "UI_STATE",
+      "severity": "INFO"
+    },
+    "U002": {
+      "code": "CHECK-ERROR",
+      "meaning": "Checkbox container not found - cannot update checkbox states",
+      "category": "ERROR",
+      "severity": "MEDIUM"
+    },
+    "U003": {
+      "code": "CHECK-DATA",
+      "meaning": "Checkbox update data - shows option and selected counts",
+      "category": "UI_STATE",
+      "severity": "INFO"
+    },
+    "U004": {
+      "code": "CHECK-SET",
+      "meaning": "Checkbox state changed - shows which option and its new state",
+      "category": "UI_STATE",
+      "severity": "INFO"
+    },
+    "I001": {
+      "code": "INIT",
+      "meaning": "Application initialization - session storage cleared",
+      "category": "SYSTEM",
+      "severity": "INFO"
+    }
+  },
+  "categories": {
+    "USER_ACTION": "Actions initiated by user interaction",
+    "DATA_PROCESSING": "Data filtering and processing operations",
+    "UI_RENDERING": "UI element creation and updates",
+    "UI_STATE": "UI element state changes",
+    "ERROR": "Error conditions that prevent functionality",
+    "SYSTEM": "System-level operations"
+  },
+  "severity": {
+    "INFO": "Informational message for debugging",
+    "MEDIUM": "Non-critical issue that may affect functionality",
+    "HIGH": "Critical issue that prevents core functionality"
+  }
+}

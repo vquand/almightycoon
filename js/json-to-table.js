@@ -61,13 +61,12 @@ let virtualScrollPosition = 0;
 // Initialize the JSON to Table module
 function initJsonToTable() {
     // Clear session storage on page load to ensure fresh state
-    console.log('Clearing session storage for fresh page load');
     try {
         sessionStorage.removeItem(STORAGE_KEYS.COLUMN_FILTERS);
         sessionStorage.removeItem(STORAGE_KEYS.COLUMN_SEARCH);
-        console.log('Session storage cleared successfully');
+        console.log('[INIT] Session storage cleared');
     } catch (e) {
-        console.warn('Failed to clear session storage:', e);
+        console.warn('[INIT] Failed to clear session storage:', e);
     }
 
     // Initialize session storage listener first
@@ -2364,8 +2363,12 @@ function applyFiltersWithoutRender() {
 window.showColumnUniqueValues = function(columnIndex, columnName, event) {
     event.stopPropagation();
 
-    console.log('=== SHOW COLUMN UNIQUE VALUES START ===');
-    console.log('Opening dropdown for:', { columnIndex, columnName });
+    // Add click counter to debug double-click issue
+    if (!window.clickCounter) window.clickCounter = {};
+    if (!window.clickCounter[columnName]) window.clickCounter[columnName] = 0;
+    window.clickCounter[columnName]++;
+
+    console.log(`[V-CLICK] #${window.clickCounter[columnName]} ${columnName}`);
 
     const button = document.getElementById(`col-filter-btn-${columnIndex}`);
     const dropdown = document.getElementById(`col-filter-dropdown-${columnIndex}`);
@@ -2408,23 +2411,26 @@ window.showColumnUniqueValues = function(columnIndex, columnName, event) {
     }
 
     // Debug dropdown state
-    console.log('Dropdown found:', !!dropdown);
-    console.log('Dropdown current parent:', dropdown.parentNode?.className || dropdown.parentNode?.tagName || 'unknown');
-    console.log('Dropdown container found:', !!dropdownContainer);
-    console.log('Dropdown needs move:', dropdown.parentNode !== dropdownContainer);
+    const optionsContainerBeforeMove = dropdown.querySelector(`#col-filter-options-${columnIndex}`);
+    const needsMove = dropdown.parentNode !== dropdownContainer;
+    const isAlreadyVisible = dropdown.classList.contains('show') && optionsContainerBeforeMove && optionsContainerBeforeMove.children.length > 0;
 
-    // Debug dropdown HTML content
-    console.log('Dropdown current HTML:', dropdown.innerHTML);
-    console.log('Dropdown children count:', dropdown.children.length);
+    console.log(`[DROPDOWN-BEFORE] move=${needsMove} options=${optionsContainerBeforeMove ? optionsContainerBeforeMove.children.length : 0} visible=${isAlreadyVisible}`);
 
-    const existingFilterControls = dropdown.querySelector('.filter-controls');
-    console.log('Existing filter controls:', !!existingFilterControls);
-    if (existingFilterControls) {
-        console.log('Filter controls content:', existingFilterControls.innerHTML);
+    // If dropdown is already visible and positioned correctly with options, just regenerate options
+    if (isAlreadyVisible && !needsMove) {
+        console.log(`[DROPDOWN-SKIP] Already positioned and visible with options, regenerating options only`);
+        dropdown.classList.add('show');
+        delete window.tempFilterSelections[columnName];
+
+        // Generate options and update checkboxes
+        generateUniqueValueOptionsExcludingColumn(columnIndex, columnName);
+        updateDropdownCheckboxes(columnIndex, columnName);
+        return;
     }
 
     // Move dropdown to dedicated container
-    if (dropdown.parentNode !== dropdownContainer) {
+    if (needsMove) {
         console.log('Dropdown before move - ID:', dropdown.id);
         console.log('Dropdown before move - HTML:', dropdown.innerHTML);
         console.log('Dropdown before move - Children count:', dropdown.children.length);
@@ -2433,16 +2439,10 @@ window.showColumnUniqueValues = function(columnIndex, columnName, event) {
         const originalParent = dropdown.parentNode;
 
         dropdownContainer.appendChild(dropdown);
-        console.log('Moved dropdown to dedicated container');
-        console.log('Dropdown HTML after move:', dropdown.innerHTML);
-        console.log('Dropdown after move - Children count:', dropdown.children.length);
 
-        // Check if filter-controls exist
-        const filterControls = dropdown.querySelector('.filter-controls');
-        console.log('Filter controls found:', !!filterControls);
-        if (filterControls) {
-            console.log('Filter controls HTML:', filterControls.innerHTML);
-        }
+        // Check options container state after move
+        const optionsContainerAfterMove = dropdown.querySelector(`#col-filter-options-${columnIndex}`);
+        console.log(`[DROPDOWN-AFTER] options=${optionsContainerAfterMove ? optionsContainerAfterMove.children.length : 0}`);
 
         // Clean up any remaining dropdown references in original location
         // This prevents duplicates and confusion when table is re-rendered
@@ -2467,17 +2467,12 @@ window.showColumnUniqueValues = function(columnIndex, columnName, event) {
     dropdown.style.width = `${Math.max(220, Math.min(300, buttonRect.width))}px`;
     dropdown.style.pointerEvents = 'auto'; // Enable pointer events for dropdown itself
 
-    console.log('Using dedicated dropdown container');
-    console.log('Button rect:', buttonRect);
-    console.log('Dropdown positioning:', {
-        top: dropdown.style.top,
-        left: dropdown.style.left,
-        width: dropdown.style.width,
-        position: dropdown.style.position,
-        zIndex: '9999999'
-    });
+    // Check if positioning affected the options container
+    const optionsAfterPositioning = dropdown.querySelector(`#col-filter-options-${columnIndex}`);
+    console.log(`[DROPDOWN-POSITIONED] ${columnName} optionsAfterPosition=${optionsAfterPositioning ? optionsAfterPositioning.children.length : 0}`);
 
     dropdown.classList.add('show');
+    console.log(`[DROPDOWN-SHOW] ${columnName} show class added`);
 
     // Clear any temporary selections for this column when opening dropdown
     delete window.tempFilterSelections[columnName];
@@ -2485,14 +2480,32 @@ window.showColumnUniqueValues = function(columnIndex, columnName, event) {
     // Generate unique values from data with all filters EXCEPT the current column
     // This shows all available options that respect other column filters, but allows changing this column's filter
     // IMPORTANT: Do this AFTER the dropdown is moved to avoid race conditions
-    console.log('About to call generateUniqueValueOptionsExcludingColumn from showColumnUniqueValues');
-    generateUniqueValueOptionsExcludingColumn(columnIndex, columnName);
-    console.log('Returned from generateUniqueValueOptionsExcludingColumn');
+    console.log(`[V-GEN] ${columnName}`);
 
-    // Update checkboxes to match current applied filter state
-    console.log('About to call updateDropdownCheckboxes from showColumnUniqueValues');
-    updateDropdownCheckboxes(columnIndex, columnName);
-    console.log('Returned from updateDropdownCheckboxes');
+    // Use a small delay when dropdown needed repositioning to ensure DOM is stable
+    if (needsMove) {
+        setTimeout(() => {
+            console.log(`[V-GEN-DELAYED] ${columnName}`);
+            generateUniqueValueOptionsExcludingColumn(columnIndex, columnName);
+            updateDropdownCheckboxes(columnIndex, columnName);
+
+            // Ensure dropdown remains visible after delayed generation
+            setTimeout(() => {
+                dropdown.classList.add('show');
+                console.log(`[DROPDOWN-RESHOW] ${columnName} ensured visible after delayed generation`);
+            }, 0);
+        }, 10);
+    } else {
+        console.log(`[V-GEN-IMMEDIATE] ${columnName} (no positioning needed)`);
+        generateUniqueValueOptionsExcludingColumn(columnIndex, columnName);
+        updateDropdownCheckboxes(columnIndex, columnName);
+
+        // Ensure dropdown remains visible after immediate generation
+        setTimeout(() => {
+            dropdown.classList.add('show');
+            console.log(`[DROPDOWN-RESHOW] ${columnName} ensured visible after immediate generation`);
+        }, 0);
+    }
 
     // Remove any existing global click handler to avoid duplicates
     if (window.currentDropdownHandler) {
@@ -2523,20 +2536,18 @@ window.showColumnUniqueValues = function(columnIndex, columnName, event) {
     // Add the global click handler
     setTimeout(() => {
         document.addEventListener('click', window.currentDropdownHandler);
+        console.log(`[V-COMPLETE] ${columnName} dropdown setup complete, visible=${dropdown.classList.contains('show')}`);
     }, 50);
 };
 
 // Generate unique value options from data with all filters EXCEPT the specified column
 function generateUniqueValueOptionsExcludingColumn(columnIndex, columnName, isClearing = false) {
-    console.log('=== GENERATE UNIQUE VALUE OPTIONS EXCLUDING COLUMN START ===');
-    console.log('generateUniqueValueOptionsExcludingColumn called with:', { columnIndex, columnName, isClearing });
-
     const optionsContainer = document.getElementById(`col-filter-options-${columnIndex}`);
+    console.log(`[GEN-START] ${columnName} clear=${isClearing} container=${!!optionsContainer}`);
     if (!optionsContainer) {
-        console.log('Options container not found, returning early');
+        console.log(`[GEN-ERROR] ${columnName} container not found`);
         return;
     }
-    console.log('Options container found:', optionsContainer);
 
     // Get filters from session storage
     const columnFilters = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.COLUMN_FILTERS) || '{}');
@@ -2597,9 +2608,7 @@ function generateUniqueValueOptionsExcludingColumn(columnIndex, columnName, isCl
     const maxOptions = 100;
     const limitedValues = uniqueValues.slice(0, maxOptions);
 
-    console.log('generateUniqueValueOptionsExcludingColumn: limitedValues.length =', limitedValues.length);
-    console.log('generateUniqueValueOptionsExcludingColumn: uniqueValues.length =', uniqueValues.length);
-    console.log('generateUniqueValueOptionsExcludingColumn: dataToShow.length =', dataToShow.length);
+    console.log(`[GEN-DATA] ${columnName} filtered=${dataToShow.length} unique=${uniqueValues.length} limited=${limitedValues.length}`);
 
     if (limitedValues.length === 0) {
         console.log('No values found, showing "No values found" message');
@@ -2639,25 +2648,28 @@ function generateUniqueValueOptionsExcludingColumn(columnIndex, columnName, isCl
         `;
     }
 
-    console.log('Generated HTML length:', html.length);
-    console.log('Generated HTML preview:', html.substring(0, 200));
-
-    // Check dropdown visibility before updating
-    const dropdownElement = document.getElementById(`col-filter-dropdown-${columnIndex}`);
-    console.log('Dropdown element before update:', dropdownElement);
-    console.log('Dropdown classes before update:', dropdownElement ? dropdownElement.className : 'not found');
-    console.log('Dropdown display before update:', dropdownElement ? window.getComputedStyle(dropdownElement).display : 'not found');
+    console.log(`[GEN-HTML] ${columnName} length=${html.length}`);
 
     optionsContainer.innerHTML = html;
+    console.log(`[GEN-RESULT] ${columnName} children=${optionsContainer.children.length}`);
 
-    // Check dropdown visibility after updating
-    console.log('Dropdown element after update:', dropdownElement);
-    console.log('Dropdown classes after update:', dropdownElement ? dropdownElement.className : 'not found');
-    console.log('Dropdown display after update:', dropdownElement ? window.getComputedStyle(dropdownElement).display : 'not found');
+    // Verify the actual DOM state immediately after insertion
+    setTimeout(() => {
+        const actualChildren = optionsContainer.children;
+        const actualHTML = optionsContainer.innerHTML;
+        console.log(`[GEN-VERIFY] ${columnName} actualChildren=${actualChildren.length} htmlLength=${actualHTML.length}`);
 
-    // Check what content is actually in the container after updating
-    console.log('Container innerHTML after update:', optionsContainer.innerHTML.substring(0, 300));
-    console.log('Container children count after update:', optionsContainer.children.length);
+        // Check first few characters of actual HTML
+        if (actualHTML.length > 0) {
+            console.log(`[GEN-VERIFY] ${columnName} htmlPreview=${actualHTML.substring(0, 100)}`);
+        } else {
+            console.log(`[GEN-VERIFY] ${columnName} htmlEmpty=true`);
+        }
+
+        // Check CSS computed styles for the options container
+        const computedStyle = window.getComputedStyle(optionsContainer);
+        console.log(`[GEN-CSS] ${columnName} display=${computedStyle.display} visibility=${computedStyle.visibility} height=${computedStyle.height} overflow=${computedStyle.overflow}`);
+    }, 0);
 
     // Only force uncheck checkboxes when clearing a filter (not when opening dropdown)
     if (isClearing) {
@@ -2686,6 +2698,9 @@ function generateUniqueValueOptions(columnIndex, columnName) {
         return;
     }
     console.log('Options container element:', optionsContainer);
+    console.log('Options container innerHTML length:', optionsContainer.innerHTML.length);
+    console.log('Options container children count:', optionsContainer.children.length);
+    console.log('Options container current content:', optionsContainer.innerHTML.substring(0, 100));
 
     // Get values from currently filtered data (not original data)
     const dataToShow = filteredData.length > 0 ? filteredData : currentRows;
@@ -2807,27 +2822,25 @@ window.applyUniqueValueFilter = function(columnIndex, columnName, value) {
 function updateDropdownCheckboxes(columnIndex, columnName) {
     const optionsContainer = document.getElementById(`col-filter-options-${columnIndex}`);
     if (!optionsContainer) {
-        console.log('Options container not found:', `col-filter-options-${columnIndex}`);
+        console.log(`[CHECK-ERROR] ${columnName} container not found`);
         return;
     }
 
-    console.log('Updating option highlighting for:', { columnIndex, columnName });
+    console.log(`[CHECK-START] ${columnName}`);
 
     // Use temporary selections if they exist, otherwise use applied selections
     let selectedValues = [];
     if (window.tempFilterSelections[columnName]) {
         selectedValues = window.tempFilterSelections[columnName];
-        console.log('Using temp selections:', selectedValues);
     } else {
         const columnFilters = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.COLUMN_FILTERS) || '{}');
         const filter = columnFilters[columnName] || { values: [] };
         selectedValues = filter.values || [];
-        console.log('Using applied selections:', selectedValues);
     }
 
     const selectedValuesSet = new Set(selectedValues);
     const options = optionsContainer.querySelectorAll('.column-filter-option');
-    console.log('Found options:', options.length);
+    console.log(`[CHECK-DATA] ${columnName} options=${options.length} selected=${selectedValues.length}`);
 
     options.forEach((option, index) => {
         // Handle checkbox-style options
@@ -2842,18 +2855,17 @@ function updateDropdownCheckboxes(columnIndex, columnName) {
             const optionValue = option.getAttribute('data-value') ||
                                option.getAttribute('title') ||
                                textSpan.textContent;
-            console.log(`Checkbox option ${index}: value="${optionValue}", selected=${selectedValuesSet.has(optionValue)}`);
 
             if (selectedValuesSet.has(optionValue)) {
                 option.classList.add('selected');
                 checkbox.checked = true;
                 checkbox.setAttribute('checked', 'checked');
-                console.log(`Added selected class and checked checkbox for option ${index}, checkbox element:`, checkbox);
+                console.log(`[CHECK-SET] ${columnName} ${optionValue}=true`);
             } else {
                 option.classList.remove('selected');
                 checkbox.checked = false;
                 checkbox.removeAttribute('checked');
-                console.log(`Removed selected class and unchecked checkbox for option ${index}, checkbox element:`, checkbox, `checkbox.checked after setting: ${checkbox.checked}`);
+                console.log(`[CHECK-SET] ${columnName} ${optionValue}=false`);
             }
         } else if (optionText) {
             // Text-only option with .option-text class
@@ -2867,7 +2879,6 @@ function updateDropdownCheckboxes(columnIndex, columnName) {
                 if (indicator) {
                     indicator.textContent = '✓';
                 }
-                console.log(`Added selected class for text option ${index}`);
             } else {
                 option.classList.remove('selected');
                 // Update selection indicator
@@ -2875,7 +2886,6 @@ function updateDropdownCheckboxes(columnIndex, columnName) {
                 if (indicator) {
                     indicator.textContent = '';
                 }
-                console.log(`Removed selected class for text option ${index}`);
             }
         } else {
             console.log(`Option ${index} has no recognizable elements`);
@@ -2938,8 +2948,7 @@ function updateFilterButtonAppearance(columnIndex, columnName) {
 window.clearColumnFilter = function(columnIndex, columnName) {
     event.stopPropagation();
 
-    console.log('=== CLEAR COLUMN FILTER START ===');
-    console.log('Clearing filter for:', { columnIndex, columnName });
+    console.log(`[CLEAR] ${columnName}`);
 
     // Clear temporary selections
     if (window.tempFilterSelections[columnName]) {
@@ -2952,14 +2961,11 @@ window.clearColumnFilter = function(columnIndex, columnName) {
     sessionStorage.setItem(STORAGE_KEYS.COLUMN_FILTERS, JSON.stringify(columnFilters));
 
     // Apply filters to update the table data first
-    console.log('About to call applyAllFilters');
     applyAllFilters();
 
     // Generate options from data with all filters EXCEPT the current column
     // This will create completely new HTML elements
-    console.log('About to call generateUniqueValueOptionsExcludingColumn (Clear mode)');
     generateUniqueValueOptionsExcludingColumn(columnIndex, columnName, true);
-    console.log('Returned from generateUniqueValueOptionsExcludingColumn');
 
     // Update button appearance to show cleared state
     updateFilterButtonAppearanceTemp(columnIndex, columnName);
@@ -2968,10 +2974,7 @@ window.clearColumnFilter = function(columnIndex, columnName) {
     const dropdownElement = document.getElementById(`col-filter-dropdown-${columnIndex}`);
     if (dropdownElement) {
         dropdownElement.classList.add('show');
-        console.log('Forced dropdown to stay visible');
     }
-
-    console.log('Cleared filter and regenerated options from updated data for column:', columnName);
 };
 
 // Apply filter for a specific column (closes dropdown)
