@@ -142,7 +142,7 @@ function setupColumnSearch() {
 
     
     // Input event for search
-    searchInput.addEventListener('input', handleColumnSearch);
+    searchInput.addEventListener('input', searchAndGoToColumn);
 
     // Keyboard navigation with enhanced behavior
     searchInput.addEventListener('keydown', (e) => {
@@ -182,7 +182,7 @@ function setupColumnSearch() {
 
     // Show dropdown on focus
     searchInput.addEventListener('focus', () => {
-        handleColumnSearch({ target: searchInput });
+        searchAndGoToColumn({ target: searchInput });
     });
 
     // Hide dropdown when clicking outside
