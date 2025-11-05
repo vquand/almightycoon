@@ -66,11 +66,8 @@ let virtualScrollPosition = 0;
 // Compute and cache unique values for all columns
 function computeAndCacheUniqueValues(rows, columns) {
     if (!rows || rows.length === 0 || !columns || columns.length === 0) {
-        console.log('[CACHE] No data or columns, skipping unique values computation');
         return;
     }
-
-    console.log(`[CACHE] Computing unique values for ${columns.length} columns from ${rows.length} rows`);
 
     const uniqueValuesMap = {};
 
@@ -85,13 +82,11 @@ function computeAndCacheUniqueValues(rows, columns) {
         });
 
         uniqueValuesMap[columnName] = Array.from(values).sort();
-        console.log(`[CACHE] Column "${columnName}": ${uniqueValuesMap[columnName].length} unique values`);
-    });
+        });
 
     // Save to session storage
     try {
         sessionStorage.setItem(STORAGE_KEYS.UNIQUE_VALUES, JSON.stringify(uniqueValuesMap));
-        console.log(`[CACHE] Successfully cached unique values for ${Object.keys(uniqueValuesMap).length} columns`);
 
         // Also store in memory for faster access
         allUniqueValues.clear();
@@ -118,8 +113,7 @@ function restoreAllFilterButtonStates() {
         updateFilterHeaderControls(columnIndex, columnName);
     });
 
-    console.log('Restored all filter button states after table re-render');
-}
+    }
 
 // Update filter button color and input placeholder together
 function updateFilterHeaderControls(columnIndex, columnName) {
@@ -579,22 +573,19 @@ function applyColumnFilter(columnIndex, columnName) {
     updateClearAllFiltersButton();
 }
 
-// Clear all column filters
+// Clear all filters and re-convert JSON data
 function clearAllFilters() {
-    console.log('Clearing all column filters...');
-
     // Clear all filter data
     columnFilters.clear();
     allUniqueValues.clear();
-    globalSearchFilter = ''; // Clear global search
-    filteredData = [...currentRows];
+    globalSearchFilter = '';
+    filteredData = [];
 
     // Clear session storage
     try {
         sessionStorage.removeItem(STORAGE_KEYS.COLUMN_FILTERS);
         sessionStorage.removeItem(STORAGE_KEYS.COLUMN_SEARCH);
         sessionStorage.removeItem(STORAGE_KEYS.GLOBAL_SEARCH);
-        console.log('Cleared filter state from session storage');
     } catch (e) {
         console.error('Failed to clear filter state from session storage:', e);
     }
@@ -606,63 +597,14 @@ function clearAllFilters() {
         updateGlobalSearchVisualFeedback();
     }
 
-    // Reset filter button states
-    currentColumns.forEach((col, index) => {
-        const columnIndex = index + 1; // +1 because column 0 is the row number
-        const button = document.getElementById(`col-filter-btn-${columnIndex}`);
-        const searchInput = document.getElementById(`col-search-${columnIndex}`);
-
-        if (button) {
-            button.className = 'btn btn-outline-primary btn-sm';
-            const icon = button.querySelector('i');
-            if (icon) {
-                icon.className = 'bi bi-funnel';
-            }
-        }
-
-        if (searchInput) {
-            searchInput.value = '';
-            searchInput.placeholder = `Search ${col}...`;
-            searchInput.readOnly = false;
-        }
-    });
-
-    // Update pagination to show all data
-    currentPage = 1;
-    updatePaginationAsync();
-
-    // Re-render the table
-    scheduleTableRender();
-
-    // Show success message
-    window.AllmightyUtils.showSuccess('✅ All filters cleared successfully');
-
-    console.log('All filters cleared successfully');
-
-    // Hide the clear all filters button
-    updateClearAllFiltersButton();
+    // Re-convert JSON from the input to get fresh data
+    window.AllmightyUtils.showSuccess('🔄 Resetting data...');
+    convertJson();
 }
 
-// Update the visibility of the "Clear All Filters" button
+// Update the visibility of the "Clear All Filters" button (always visible now)
 function updateClearAllFiltersButton() {
-    const container = document.getElementById('clearAllFiltersBtnContainer');
-    if (!container) return;
-
-    // Show button if there are any active filters
-    const columnSearchState = sessionStorage.getItem(STORAGE_KEYS.COLUMN_SEARCH);
-    const hasColumnSearch = columnSearchState && Object.keys(JSON.parse(columnSearchState)).length > 0;
-
-    const hasActiveFilters = columnFilters.size > 0 ||
-                           globalSearchFilter !== '' ||
-                           hasColumnSearch ||
-                           sessionStorage.getItem(STORAGE_KEYS.COLUMN_FILTERS) !== null ||
-                           sessionStorage.getItem(STORAGE_KEYS.GLOBAL_SEARCH) !== null;
-
-    if (hasActiveFilters) {
-        container.classList.remove('d-none');
-    } else {
-        container.classList.add('d-none');
-    }
+    // Button is always visible, no need for complex visibility logic
 }
 
 // Get column nesting level
@@ -706,8 +648,7 @@ function ensureStickyHeaders() {
     });
 
     // Log for debugging
-    console.log('Sticky headers with separate containers setup completed');
-}
+    }
 
 // Synchronize column widths between header and body tables
 function synchronizeColumnWidths() {
@@ -776,8 +717,7 @@ function synchronizeColumnWidths() {
         bodyTable.style.width = `${maxWidth}px`;
     }
 
-    console.log('Column widths synchronized');
-}
+    }
 
 // Highlight a column temporarily
 function highlightColumn(columnIndex) {
@@ -856,16 +796,7 @@ function updatePagination() {
     // Use filtered data if available, otherwise use all data
     const dataToUse = filteredData.length > 0 ? filteredData : currentRows;
 
-    console.log('🔍 Pagination update:', {
-        filteredDataLength: filteredData.length,
-        currentRowsLength: currentRows.length,
-        dataToUseLength: dataToUse.length,
-        currentPage: currentPage,
-        pageSize: pageSize
-    });
-
     if (!dataToUse.length) {
-        console.log('🔍 No data to paginate, hiding pagination');
         hidePagination();
         paginatedRows = []; // Explicitly clear paginatedRows
         return;
@@ -880,13 +811,6 @@ function updatePagination() {
 
     // Get paginated rows
     paginatedRows = dataToUse.slice(startIndex, endIndex);
-
-    console.log('🔍 Updated paginatedRows:', {
-        startIndex: startIndex,
-        endIndex: endIndex,
-        paginatedRowsLength: paginatedRows.length,
-        paginatedRows: paginatedRows
-    });
 
     // Update pagination UI
     updatePaginationUI(startIndex + 1, endIndex, dataToUse.length);
@@ -1274,16 +1198,7 @@ function generateTableBody() {
     const hasActiveFilters = columnFilters.size > 0 || globalSearchFilter !== '';
     const dataToUse = hasActiveFilters ? filteredData : currentRows;
 
-    console.log('🔍 generateTableBody:', {
-        filteredDataLength: filteredData.length,
-        currentRowsLength: currentRows.length,
-        hasActiveFilters: hasActiveFilters,
-        usingFilteredData: hasActiveFilters,
-        dataToUseLength: dataToUse.length
-    });
-
     if (!dataToUse.length) {
-        console.log('🔍 No data to show, returning empty tbody');
         return '<tbody></tbody>';
     }
 
@@ -1329,15 +1244,8 @@ function generateTableBody() {
 
 // Background update that doesn't recreate search inputs
 function performBackgroundUpdate() {
-    console.log('Performing background data update without recreating search inputs');
-
     // Update data silently without triggering full re-render
     applyFiltersWithoutRender();
-
-    console.log('🔍 After filter update:', {
-        filteredDataLength: filteredData.length,
-        currentRowsLength: currentRows.length
-    });
 
     // Update only the table body, preserving headers with search inputs
     requestAnimationFrame(() => {
@@ -1352,29 +1260,17 @@ function performBackgroundUpdate() {
                     if (tbody) {
                         // Generate new tbody content
                         const newTbodyHtml = generateTableBody();
-                        console.log('🔍 Generated tbody HTML length:', newTbodyHtml.length);
                         tbody.innerHTML = newTbodyHtml;
-                        console.log('Background table body update completed');
-                    } else {
-                        console.warn('❌ No tbody found in body table');
                     }
-                } else {
-                    console.warn('❌ No table found in body container');
                 }
             } else {
                 // Fallback: look for any table with tbody (for non-sticky header mode)
                 const tbody = tableContainer.querySelector('table tbody');
                 if (tbody) {
                     const newTbodyHtml = generateTableBody();
-                    console.log('🔍 Generated tbody HTML length (fallback):', newTbodyHtml.length);
                     tbody.innerHTML = newTbodyHtml;
-                    console.log('Background table body update completed (fallback)');
-                } else {
-                    console.warn('❌ No tbody found anywhere in table container');
                 }
             }
-        } else {
-            console.warn('❌ No tableContainer found');
         }
     });
 }
@@ -2091,11 +1987,9 @@ function getColumnLevel(columnName) {
 
 // Hide column dropdown
 function hideColumnDropdown() {
-    console.log('hideColumnDropdown called');
     const suggestions = document.getElementById('columnSuggestions');
     if (suggestions) {
-        console.log('Hiding dropdown suggestions');
-        suggestions.classList.remove('show');
+                suggestions.classList.remove('show');
         suggestions.classList.add('d-none');
 
         // Update ARIA attributes
@@ -2313,7 +2207,6 @@ async function convertJsonToTable() {
         originalRows = [...rows];
         try {
             sessionStorage.setItem('almightycoon_backup_data', JSON.stringify(originalRows));
-            console.log('🔍 Created backup of original data:', originalRows.length);
         } catch (e) {
             console.warn('Failed to create backup data:', e);
         }
@@ -2565,84 +2458,47 @@ function sortRows(rows, column, direction) {
 
 // Toggle column sorting
 function toggleColumnSort(column) {
-    console.log(`🔄 Column sort clicked: "${column}"`);
-    console.log(`🔄 Current state: sortColumn="${sortColumn}", sortDirection="${sortDirection}", lastSortColumn="${lastSortColumn}"`);
-
     if (sortColumn === null && lastSortColumn === column) {
         // Clicking same column after sorting was cleared: restart cycle with asc
-        console.log('🔄 Restarting cycle: null → asc');
         sortColumn = column;
         sortDirection = 'asc';
     } else if (sortColumn === column) {
         // Three-state cycle: asc -> desc -> none
         if (sortDirection === 'asc') {
-            console.log('🔄 Cycle: asc → desc');
             sortDirection = 'desc';
         } else if (sortDirection === 'desc') {
-            console.log('🔄 Cycle: desc → null (no sort)');
             // Clear sorting
             sortColumn = null;
             sortDirection = null;
         }
     } else {
         // New column, default to ascending
-        console.log(`🔄 New column: "${column}" → asc`);
         sortColumn = column;
         sortDirection = 'asc';
     }
-
-    console.log(`🔄 New state: sortColumn="${sortColumn}", sortDirection="${sortDirection}"`);
 
     // Always track the last clicked column
     lastSortColumn = column;
 
     // Re-sort current rows instead of regenerating from scratch
-    console.log('🔄 Checking data availability:', {
-        currentRowsLength: currentRows.length,
-        originalRowsLength: originalRows.length,
-        hasSortColumn: !!sortColumn
-    });
-
     if (currentRows.length > 0) {
         if (sortColumn) {
-            console.log(`Sorting column "${column}" in direction "${sortDirection}"`);
             currentRows = sortRows(currentRows, sortColumn, sortDirection);
         } else {
-            console.log('Clearing sorting, restoring original order');
-            console.log('🔄 Before restore:', {
-                currentRowsLength: currentRows.length,
-                originalRowsLength: originalRows.length
-            });
-
             // Check if originalRows is empty - this indicates a bug
             if (originalRows.length === 0) {
-                console.error('🚨 BUG: originalRows is empty! Data was corrupted somewhere.');
-                console.error('🚨 The filtering logic accidentally cleared the original data.');
-                console.error('🚨 This is a critical bug that needs to be fixed in the filtering code.');
-
-                // For now, just show an error message and stop
+                console.error('CRITICAL: originalRows is empty! Data was corrupted somewhere.');
                 window.AllmightyUtils.showError('Data corruption detected. Please refresh the page and try again.');
                 return;
             }
 
             // Restore original order by regenerating table
             currentRows = [...originalRows];
-            console.log('🔄 After restore:', {
-                currentRowsLength: currentRows.length,
-                currentRowsSample: currentRows.slice(0, 1)
-            });
         }
 
         // Apply filters and update pagination
-        console.log('🔄 About to apply filters...');
         applyFiltersWithoutRender();
-        console.log('🔄 Filters applied');
-
-        // Use scheduleTableRender to ensure search inputs are restored
-        console.log('Calling scheduleTableRender after sorting');
         scheduleTableRender();
-    } else {
-        console.log('🔄 No currentRows data available for sorting!');
     }
 
     // Log sorting action
@@ -2986,9 +2842,6 @@ function generateFilterOptions(columnName, values) {
 
 // Handle column header search filtering functionality
 window.filterByColumn = function(columnIndex, columnName, searchValue) {
-    console.log(`🔍 COLUMN SEARCH TRIGGERED: columnIndex=${columnIndex}, columnName="${columnName}", searchValue="${searchValue}"`);
-    console.log('🔍 Available global functions:', Object.keys(window).filter(key => key.includes('filter')));
-
     // Clear existing timeout for this column
     if (searchTimeouts.has(columnIndex)) {
         clearTimeout(searchTimeouts.get(columnIndex));
@@ -3006,13 +2859,11 @@ window.filterByColumn = function(columnIndex, columnName, searchValue) {
             // Save back to session storage
             sessionStorage.setItem(STORAGE_KEYS.COLUMN_SEARCH, JSON.stringify(searchState));
 
-            console.log(`✅ Applying column search for ${columnName}: "${searchValue}"`);
-
             // Apply filtering immediately for better user experience
             applySearchFromStorage();
 
         } catch (e) {
-            console.error('❌ Failed to save search state to session storage:', e);
+            console.error('Failed to save search state to session storage:', e);
         }
     }, 50); // 50ms debounce for filtering
 
@@ -3049,22 +2900,17 @@ window.setColumnSearchBlur = function(columnIndex) {
 
 // Bind event listeners to column search inputs after table render
 function bindColumnSearchEventListeners() {
-    console.log('🔧 Binding event listeners to column search inputs');
-
     currentColumns.forEach((columnName, index) => {
         const columnIndex = index + 1; // +1 because column 0 is the row number
         const searchInput = document.getElementById(`col-search-${columnIndex}`);
 
         if (searchInput) {
-            console.log(`✅ Found search input: col-search-${columnIndex} for column "${columnName}"`);
-
             // Remove existing listeners to avoid duplicates
             const newSearchInput = searchInput.cloneNode(true);
             searchInput.parentNode.replaceChild(newSearchInput, searchInput);
 
             // Add event listeners
             newSearchInput.addEventListener('keyup', function(e) {
-                console.log(`🔥 Keyup event on col-search-${columnIndex}: "${e.target.value}"`);
                 window.filterByColumn(columnIndex, columnName, e.target.value);
             });
 
@@ -3079,10 +2925,6 @@ function bindColumnSearchEventListeners() {
             newSearchInput.addEventListener('click', function(e) {
                 e.stopPropagation();
             });
-
-            console.log(`✅ Bound event listeners to col-search-${columnIndex}`);
-        } else {
-            console.warn(`❌ Search input not found: col-search-${columnIndex} for column "${columnName}"`);
         }
     });
 }
@@ -3173,27 +3015,19 @@ function applySearchFromStorage() {
 
 // Apply filters without triggering immediate render
 function applyFiltersWithoutRender() {
-    console.log('🔍 applyFiltersWithoutRender called');
-    console.log('🔍 Data check:', {
-        originalRowsLength: originalRows.length,
-        currentRowsLength: currentRows.length,
-        columnFiltersSize: columnFilters.size
-    });
-
     // CRITICAL: Protect originalRows from being modified
     if (originalRows.length === 0) {
-        console.error('🚨 CRITICAL: originalRows is empty! This should never happen.');
-        console.error('🚨 Filtering code corrupted the original data.');
+        console.error('CRITICAL: originalRows is empty! This should never happen.');
+        console.error('Filtering code corrupted the original data.');
         // Try to restore from sessionStorage if available
         try {
             const savedData = sessionStorage.getItem('almightycoon_backup_data');
             if (savedData) {
                 originalRows = JSON.parse(savedData);
                 currentRows = [...originalRows];
-                console.log('🔍 Restored data from backup:', originalRows.length);
             }
         } catch (e) {
-            console.error('🚨 Failed to restore backup data:', e);
+            console.error('Failed to restore backup data:', e);
         }
     }
 
@@ -3201,13 +3035,6 @@ function applyFiltersWithoutRender() {
         filteredData = [];
         return;
     }
-
-    console.log('🔍 Applying filters with columnFilters:', Array.from(columnFilters.entries()));
-    console.log('🔍 Current columns:', currentColumns);
-    console.log('🔍 Column filter details:');
-    columnFilters.forEach((filter, columnName) => {
-        console.log(`  - ${columnName}:`, filter);
-    });
 
     filteredData = currentRows.filter((row, index) => {
         // Apply global search filter first
@@ -3230,8 +3057,6 @@ function applyFiltersWithoutRender() {
             const cellValue = row[columnName];
             const cellString = cellValue !== null && cellValue !== undefined ? String(cellValue) : '';
 
-            console.log(`🔍 Row ${index}: Checking column "${columnName}" with value:`, cellValue, `(as string: "${cellString}")`, `searching for: "${filter.search}"`);
-
             // Apply search filter
             if (filter.search) {
                 let matches = false;
@@ -3242,8 +3067,6 @@ function applyFiltersWithoutRender() {
                     // Fallback to literal search if regex is invalid
                     matches = cellString.toLowerCase().includes(filter.search.toLowerCase());
                 }
-
-                console.log(`🔍 Row ${index}: ${columnName} "${cellString}" matches "${filter.search}"? ${matches}`);
 
                 if (!matches) return false;
             }
@@ -3257,12 +3080,7 @@ function applyFiltersWithoutRender() {
         return true;
     });
 
-    console.log('🔍 Filtered result:', {
-        originalRows: currentRows.length,
-        filteredRows: filteredData.length,
-        filteredData: filteredData
-    });
-
+    
     // Reset to first page
     currentPage = 1;
 }
