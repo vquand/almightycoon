@@ -2309,6 +2309,15 @@ async function convertJsonToTable() {
         currentColumns = Array.from(columns).sort();
         availableColumns = currentColumns;
 
+        // CRITICAL: Create backup of original data to prevent corruption
+        originalRows = [...rows];
+        try {
+            sessionStorage.setItem('almightycoon_backup_data', JSON.stringify(originalRows));
+            console.log('🔍 Created backup of original data:', originalRows.length);
+        } catch (e) {
+            console.warn('Failed to create backup data:', e);
+        }
+
         // Initialize filtered data and clear filters
         filteredData = [...currentRows];
         columnFilters.clear();
@@ -2556,45 +2565,84 @@ function sortRows(rows, column, direction) {
 
 // Toggle column sorting
 function toggleColumnSort(column) {
-    if (lastSortColumn === column && sortColumn === null) {
-        // Continuing cycle after clearing: start with asc
+    console.log(`🔄 Column sort clicked: "${column}"`);
+    console.log(`🔄 Current state: sortColumn="${sortColumn}", sortDirection="${sortDirection}", lastSortColumn="${lastSortColumn}"`);
+
+    if (sortColumn === null && lastSortColumn === column) {
+        // Clicking same column after sorting was cleared: restart cycle with asc
+        console.log('🔄 Restarting cycle: null → asc');
         sortColumn = column;
         sortDirection = 'asc';
     } else if (sortColumn === column) {
-        // Three-state cycle: asc -> desc -> none -> asc
+        // Three-state cycle: asc -> desc -> none
         if (sortDirection === 'asc') {
+            console.log('🔄 Cycle: asc → desc');
             sortDirection = 'desc';
         } else if (sortDirection === 'desc') {
+            console.log('🔄 Cycle: desc → null (no sort)');
             // Clear sorting
             sortColumn = null;
-            sortDirection = null; // Set to null to indicate no sort
+            sortDirection = null;
         }
     } else {
         // New column, default to ascending
+        console.log(`🔄 New column: "${column}" → asc`);
         sortColumn = column;
         sortDirection = 'asc';
     }
+
+    console.log(`🔄 New state: sortColumn="${sortColumn}", sortDirection="${sortDirection}"`);
 
     // Always track the last clicked column
     lastSortColumn = column;
 
     // Re-sort current rows instead of regenerating from scratch
+    console.log('🔄 Checking data availability:', {
+        currentRowsLength: currentRows.length,
+        originalRowsLength: originalRows.length,
+        hasSortColumn: !!sortColumn
+    });
+
     if (currentRows.length > 0) {
         if (sortColumn) {
             console.log(`Sorting column "${column}" in direction "${sortDirection}"`);
             currentRows = sortRows(currentRows, sortColumn, sortDirection);
         } else {
             console.log('Clearing sorting, restoring original order');
+            console.log('🔄 Before restore:', {
+                currentRowsLength: currentRows.length,
+                originalRowsLength: originalRows.length
+            });
+
+            // Check if originalRows is empty - this indicates a bug
+            if (originalRows.length === 0) {
+                console.error('🚨 BUG: originalRows is empty! Data was corrupted somewhere.');
+                console.error('🚨 The filtering logic accidentally cleared the original data.');
+                console.error('🚨 This is a critical bug that needs to be fixed in the filtering code.');
+
+                // For now, just show an error message and stop
+                window.AllmightyUtils.showError('Data corruption detected. Please refresh the page and try again.');
+                return;
+            }
+
             // Restore original order by regenerating table
             currentRows = [...originalRows];
+            console.log('🔄 After restore:', {
+                currentRowsLength: currentRows.length,
+                currentRowsSample: currentRows.slice(0, 1)
+            });
         }
 
         // Apply filters and update pagination
-        applyAllFilters();
+        console.log('🔄 About to apply filters...');
+        applyFiltersWithoutRender();
+        console.log('🔄 Filters applied');
 
         // Use scheduleTableRender to ensure search inputs are restored
         console.log('Calling scheduleTableRender after sorting');
         scheduleTableRender();
+    } else {
+        console.log('🔄 No currentRows data available for sorting!');
     }
 
     // Log sorting action
@@ -3125,6 +3173,30 @@ function applySearchFromStorage() {
 
 // Apply filters without triggering immediate render
 function applyFiltersWithoutRender() {
+    console.log('🔍 applyFiltersWithoutRender called');
+    console.log('🔍 Data check:', {
+        originalRowsLength: originalRows.length,
+        currentRowsLength: currentRows.length,
+        columnFiltersSize: columnFilters.size
+    });
+
+    // CRITICAL: Protect originalRows from being modified
+    if (originalRows.length === 0) {
+        console.error('🚨 CRITICAL: originalRows is empty! This should never happen.');
+        console.error('🚨 Filtering code corrupted the original data.');
+        // Try to restore from sessionStorage if available
+        try {
+            const savedData = sessionStorage.getItem('almightycoon_backup_data');
+            if (savedData) {
+                originalRows = JSON.parse(savedData);
+                currentRows = [...originalRows];
+                console.log('🔍 Restored data from backup:', originalRows.length);
+            }
+        } catch (e) {
+            console.error('🚨 Failed to restore backup data:', e);
+        }
+    }
+
     if (!currentRows || currentRows.length === 0) {
         filteredData = [];
         return;
