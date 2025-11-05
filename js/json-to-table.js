@@ -27,6 +27,7 @@ let selectedColumnIndex = -1;
 // Column filter state
 let columnFilters = new Map(); // columnName -> { search: string, values: Set() }
 let allUniqueValues = new Map(); // columnName -> array of unique values
+let globalSearchFilter = ''; // Global search term that filters all columns
 let filteredData = []; // Data after applying all filters
 
 // Performance optimization state
@@ -51,7 +52,8 @@ let isSearchDirty = false;
 const STORAGE_KEYS = {
     COLUMN_SEARCH: 'almightycoon_column_search',
     COLUMN_FILTERS: 'almightycoon_column_filters',
-    UNIQUE_VALUES: 'almightycoon_unique_values'
+    UNIQUE_VALUES: 'almightycoon_unique_values',
+    GLOBAL_SEARCH: 'almightycoon_global_search'
 };
 
 // Virtual scrolling state
@@ -568,6 +570,101 @@ function selectColumn(columnName) {
     goToColumn(columnName);
 }
 
+// Apply column filter (called from filter dropdown buttons)
+function applyColumnFilter(columnIndex, columnName) {
+    console.log('Applying filter for column:', columnName);
+
+    // This function would typically handle the filter application logic
+    // For now, we'll just update the button visibility
+    updateClearAllFiltersButton();
+}
+
+// Clear all column filters
+function clearAllFilters() {
+    console.log('Clearing all column filters...');
+
+    // Clear all filter data
+    columnFilters.clear();
+    allUniqueValues.clear();
+    globalSearchFilter = ''; // Clear global search
+    filteredData = [...currentRows];
+
+    // Clear session storage
+    try {
+        sessionStorage.removeItem(STORAGE_KEYS.COLUMN_FILTERS);
+        sessionStorage.removeItem(STORAGE_KEYS.COLUMN_SEARCH);
+        sessionStorage.removeItem(STORAGE_KEYS.GLOBAL_SEARCH);
+        console.log('Cleared filter state from session storage');
+    } catch (e) {
+        console.error('Failed to clear filter state from session storage:', e);
+    }
+
+    // Clear global search input
+    const searchInput = document.getElementById('columnSearch');
+    if (searchInput) {
+        searchInput.value = '';
+        updateGlobalSearchVisualFeedback();
+    }
+
+    // Reset filter button states
+    currentColumns.forEach((col, index) => {
+        const columnIndex = index + 1; // +1 because column 0 is the row number
+        const button = document.getElementById(`col-filter-btn-${columnIndex}`);
+        const searchInput = document.getElementById(`col-search-${columnIndex}`);
+
+        if (button) {
+            button.className = 'btn btn-outline-primary btn-sm';
+            const icon = button.querySelector('i');
+            if (icon) {
+                icon.className = 'bi bi-funnel';
+            }
+        }
+
+        if (searchInput) {
+            searchInput.value = '';
+            searchInput.placeholder = `Search ${col}...`;
+            searchInput.readOnly = false;
+        }
+    });
+
+    // Update pagination to show all data
+    currentPage = 1;
+    updatePaginationAsync();
+
+    // Re-render the table
+    scheduleTableRender();
+
+    // Show success message
+    window.AllmightyUtils.showSuccess('✅ All filters cleared successfully');
+
+    console.log('All filters cleared successfully');
+
+    // Hide the clear all filters button
+    updateClearAllFiltersButton();
+}
+
+// Update the visibility of the "Clear All Filters" button
+function updateClearAllFiltersButton() {
+    const container = document.getElementById('clearAllFiltersBtnContainer');
+    if (!container) return;
+
+    // Show button if there are any active filters
+    const columnSearchState = sessionStorage.getItem(STORAGE_KEYS.COLUMN_SEARCH);
+    const hasColumnSearch = columnSearchState && Object.keys(JSON.parse(columnSearchState)).length > 0;
+
+    const hasActiveFilters = columnFilters.size > 0 ||
+                           globalSearchFilter !== '' ||
+                           hasColumnSearch ||
+                           sessionStorage.getItem(STORAGE_KEYS.COLUMN_FILTERS) !== null ||
+                           sessionStorage.getItem(STORAGE_KEYS.GLOBAL_SEARCH) !== null;
+
+    if (hasActiveFilters) {
+        container.classList.remove('d-none');
+    } else {
+        container.classList.add('d-none');
+    }
+}
+
 // Get column nesting level
 function getColumnLevel(columnName) {
     return (columnName.match(/\./g) || []).length;
@@ -759,8 +856,18 @@ function updatePagination() {
     // Use filtered data if available, otherwise use all data
     const dataToUse = filteredData.length > 0 ? filteredData : currentRows;
 
+    console.log('🔍 Pagination update:', {
+        filteredDataLength: filteredData.length,
+        currentRowsLength: currentRows.length,
+        dataToUseLength: dataToUse.length,
+        currentPage: currentPage,
+        pageSize: pageSize
+    });
+
     if (!dataToUse.length) {
+        console.log('🔍 No data to paginate, hiding pagination');
         hidePagination();
+        paginatedRows = []; // Explicitly clear paginatedRows
         return;
     }
 
@@ -773,6 +880,13 @@ function updatePagination() {
 
     // Get paginated rows
     paginatedRows = dataToUse.slice(startIndex, endIndex);
+
+    console.log('🔍 Updated paginatedRows:', {
+        startIndex: startIndex,
+        endIndex: endIndex,
+        paginatedRowsLength: paginatedRows.length,
+        paginatedRows: paginatedRows
+    });
 
     // Update pagination UI
     updatePaginationUI(startIndex + 1, endIndex, dataToUse.length);
@@ -1156,14 +1270,26 @@ function performTableRender() {
 
 // Generate only the table body HTML (no headers)
 function generateTableBody() {
-    if (!paginatedRows.length) return '<tbody></tbody>';
+    // Check if we have any active filters (column search or global search)
+    const hasActiveFilters = columnFilters.size > 0 || globalSearchFilter !== '';
+    const dataToUse = hasActiveFilters ? filteredData : currentRows;
 
-    // Get actual row numbers (considering pagination)
-    const startRowNum = (currentPage - 1) * pageSize + 1;
+    console.log('🔍 generateTableBody:', {
+        filteredDataLength: filteredData.length,
+        currentRowsLength: currentRows.length,
+        hasActiveFilters: hasActiveFilters,
+        usingFilteredData: hasActiveFilters,
+        dataToUseLength: dataToUse.length
+    });
+
+    if (!dataToUse.length) {
+        console.log('🔍 No data to show, returning empty tbody');
+        return '<tbody></tbody>';
+    }
 
     let html = '<tbody>';
-    paginatedRows.forEach((row, index) => {
-        const rowNum = startRowNum + index;
+    dataToUse.forEach((row, index) => {
+        const rowNum = index + 1;
         html += `<tr><td><strong>${rowNum}</strong></td>`;
 
         currentColumns.forEach(col => {
@@ -1207,38 +1333,65 @@ function performBackgroundUpdate() {
 
     // Update data silently without triggering full re-render
     applyFiltersWithoutRender();
-    updatePagination();
+
+    console.log('🔍 After filter update:', {
+        filteredDataLength: filteredData.length,
+        currentRowsLength: currentRows.length
+    });
 
     // Update only the table body, preserving headers with search inputs
     requestAnimationFrame(() => {
         const tableContainer = document.getElementById('tableContainer');
         if (tableContainer) {
-            const table = tableContainer.querySelector('table');
-            if (table) {
-                const tbody = table.querySelector('tbody');
+            // Look for the body container which contains the tbody
+            const bodyContainer = tableContainer.querySelector('.table-body-container');
+            if (bodyContainer) {
+                const table = bodyContainer.querySelector('table');
+                if (table) {
+                    const tbody = table.querySelector('tbody');
+                    if (tbody) {
+                        // Generate new tbody content
+                        const newTbodyHtml = generateTableBody();
+                        console.log('🔍 Generated tbody HTML length:', newTbodyHtml.length);
+                        tbody.innerHTML = newTbodyHtml;
+                        console.log('Background table body update completed');
+                    } else {
+                        console.warn('❌ No tbody found in body table');
+                    }
+                } else {
+                    console.warn('❌ No table found in body container');
+                }
+            } else {
+                // Fallback: look for any table with tbody (for non-sticky header mode)
+                const tbody = tableContainer.querySelector('table tbody');
                 if (tbody) {
-                    // Generate new tbody content
                     const newTbodyHtml = generateTableBody();
+                    console.log('🔍 Generated tbody HTML length (fallback):', newTbodyHtml.length);
                     tbody.innerHTML = newTbodyHtml;
-                    console.log('Background table body update completed');
+                    console.log('Background table body update completed (fallback)');
+                } else {
+                    console.warn('❌ No tbody found anywhere in table container');
                 }
             }
+        } else {
+            console.warn('❌ No tableContainer found');
         }
     });
 }
 
-// Render paginated table with performance optimizations
+// Render table with performance optimizations (no pagination)
 function renderPaginatedTable() {
-    if (!paginatedRows.length || !currentColumns.length) return;
+    const dataToUse = filteredData.length > 0 ? filteredData : currentRows;
+    if (!dataToUse.length || !currentColumns.length) return;
 
     // For very large datasets, use progressive rendering
-    if (paginatedRows.length > 500) {
+    if (dataToUse.length > 500) {
         renderProgressiveTable();
         return;
     }
 
     // Show loading state for large datasets
-    if (currentRows.length > 1000) {
+    if (dataToUse.length > 1000) {
         showLoadingState();
     }
 
@@ -1249,7 +1402,7 @@ function renderPaginatedTable() {
         // Use DocumentFragment for faster DOM manipulation
         const fragment = document.createDocumentFragment();
         const tableElement = document.createElement('table');
-        tableElement.innerHTML = generatePaginatedTableHTML(paginatedRows, currentColumns);
+        tableElement.innerHTML = generatePaginatedTableHTML(dataToUse, currentColumns);
         fragment.appendChild(tableElement);
 
         // Clear and append in one operation with sticky header approach
@@ -1276,6 +1429,9 @@ function renderPaginatedTable() {
         // Append both containers
         tableContainer.appendChild(headerContainer);
         tableContainer.appendChild(bodyContainer);
+
+        // Bind event listeners to column search inputs
+        bindColumnSearchEventListeners();
 
         // Ensure sticky headers work properly
         ensureStickyHeaders();
@@ -1349,6 +1505,8 @@ function renderProgressiveTable() {
             requestAnimationFrame(renderNextChunk);
         } else {
             hideProgressIndicator();
+            // Bind event listeners after progressive rendering is complete
+            bindColumnSearchEventListeners();
         }
     }
 
@@ -1950,12 +2108,140 @@ function hideColumnDropdown() {
     }
 }
 
+// Global search function for filtering all table data
+window.applyGlobalSearch = function(searchTerm) {
+    const searchInput = document.getElementById('columnSearch');
+    if (!searchInput) return;
+
+    const previousSearch = globalSearchFilter;
+    globalSearchFilter = searchTerm ? searchTerm.trim().toLowerCase() : '';
+
+    // Save to session storage
+    try {
+        if (globalSearchFilter) {
+            sessionStorage.setItem(STORAGE_KEYS.GLOBAL_SEARCH, globalSearchFilter);
+        } else {
+            sessionStorage.removeItem(STORAGE_KEYS.GLOBAL_SEARCH);
+        }
+    } catch (e) {
+        console.error('Failed to save global search to session storage:', e);
+    }
+
+    // Only reapply filters if search term actually changed
+    if (previousSearch !== globalSearchFilter) {
+        applyFiltersWithoutRender();
+        scheduleTableRender();
+        updatePaginationAsync();
+
+        // Update visual feedback
+        updateGlobalSearchVisualFeedback();
+
+        // Update clear all filters button visibility
+        updateClearAllFiltersButton();
+    }
+};
+
+// Update visual feedback for global search
+function updateGlobalSearchVisualFeedback() {
+    const searchInput = document.getElementById('columnSearch');
+    if (!searchInput) return;
+
+    if (globalSearchFilter) {
+        searchInput.classList.add('is-valid');
+        searchInput.classList.remove('is-invalid');
+
+        // Update placeholder to show active search
+        const originalPlaceholder = searchInput.getAttribute('data-original-placeholder');
+        if (!originalPlaceholder) {
+            searchInput.setAttribute('data-original-placeholder', searchInput.placeholder);
+        }
+        searchInput.placeholder = `🔍 Searching: "${globalSearchFilter}"`;
+    } else {
+        searchInput.classList.remove('is-valid');
+
+        // Restore original placeholder
+        const originalPlaceholder = searchInput.getAttribute('data-original-placeholder');
+        if (originalPlaceholder) {
+            searchInput.placeholder = originalPlaceholder;
+            searchInput.removeAttribute('data-original-placeholder');
+        }
+    }
+}
+
+// Restore global search from session storage
+function restoreGlobalSearch() {
+    try {
+        const savedSearch = sessionStorage.getItem(STORAGE_KEYS.GLOBAL_SEARCH);
+        if (savedSearch) {
+            globalSearchFilter = savedSearch;
+            const searchInput = document.getElementById('columnSearch');
+            if (searchInput) {
+                searchInput.value = savedSearch;
+                updateGlobalSearchVisualFeedback();
+            }
+        }
+    } catch (e) {
+        console.error('Failed to restore global search from session storage:', e);
+    }
+}
+
+// Handle search input - combines global search and column navigation
+window.handleSearchInput = function(input) {
+    const searchTerm = (input.value || '').trim();
+
+    // Always apply global search when typing
+    applyGlobalSearch(searchTerm);
+
+    // Also show column navigation dropdown if there's text
+    if (searchTerm) {
+        searchAndGoToColumn(input);
+    } else {
+        // Hide dropdown when search is empty
+        const suggestions = document.getElementById('columnSuggestions');
+        if (suggestions) {
+            suggestions.classList.add('d-none');
+            suggestions.classList.remove('show');
+        }
+    }
+};
+
+// Handle search focus - show column navigation
+window.handleSearchFocus = function(input) {
+    const searchTerm = (input.value || '').trim();
+
+    // Show column navigation dropdown on focus
+    searchAndGoToColumn(input);
+};
+
+// Handle search keydown for special keys
+window.handleSearchKeydown = function(event) {
+    if (event.key === 'Escape') {
+        // Clear search on Escape
+        const input = document.getElementById('columnSearch');
+        if (input) {
+            input.value = '';
+            applyGlobalSearch('');
+
+            // Hide dropdown
+            const suggestions = document.getElementById('columnSuggestions');
+            if (suggestions) {
+                suggestions.classList.add('d-none');
+                suggestions.classList.remove('show');
+            }
+        }
+        event.preventDefault();
+    }
+};
 
 // Make functions globally available
 window.showPathExplorer = showPathExplorer;
 window.extractJsonPath = extractJsonPath;
 window.searchAndGoToColumn = searchAndGoToColumn;
 window.goToColumn = goToColumn;
+window.clearAllFilters = clearAllFilters;
+window.applyColumnFilter = applyColumnFilter;
+window.applyGlobalSearch = applyGlobalSearch;
+window.restoreGlobalSearch = restoreGlobalSearch;
 
 // Main conversion function with async processing
 async function convertJsonToTable() {
@@ -2027,6 +2313,7 @@ async function convertJsonToTable() {
         filteredData = [...currentRows];
         columnFilters.clear();
         allUniqueValues.clear();
+        globalSearchFilter = ''; // Clear global search
 
         // Compute and cache unique values for all columns
         computeAndCacheUniqueValues(rows, currentColumns);
@@ -2034,8 +2321,16 @@ async function convertJsonToTable() {
         // Clear session storage search state
         try {
             sessionStorage.removeItem(STORAGE_KEYS.COLUMN_SEARCH);
+            sessionStorage.removeItem(STORAGE_KEYS.GLOBAL_SEARCH);
         } catch (e) {
             console.error('Failed to clear search state from session storage:', e);
+        }
+
+        // Reset global search input
+        const searchInput = document.getElementById('columnSearch');
+        if (searchInput) {
+            searchInput.value = '';
+            updateGlobalSearchVisualFeedback();
         }
 
         // Reset pagination
@@ -2064,6 +2359,9 @@ async function convertJsonToTable() {
 
         // Refresh column search dropdown with new columns
         refreshColumnSearch();
+
+        // Restore global search if it exists
+        restoreGlobalSearch();
 
     } catch (error) {
         window.AllmightyUtils.showError(`Invalid JSON: ${error.message}`);
@@ -2640,15 +2938,15 @@ function generateFilterOptions(columnName, values) {
 
 // Handle column header search filtering functionality
 window.filterByColumn = function(columnIndex, columnName, searchValue) {
+    console.log(`🔍 COLUMN SEARCH TRIGGERED: columnIndex=${columnIndex}, columnName="${columnName}", searchValue="${searchValue}"`);
+    console.log('🔍 Available global functions:', Object.keys(window).filter(key => key.includes('filter')));
+
     // Clear existing timeout for this column
     if (searchTimeouts.has(columnIndex)) {
         clearTimeout(searchTimeouts.get(columnIndex));
     }
 
-    // Mark search as dirty to trigger render when input loses focus
-    isSearchDirty = true;
-
-    // Debounced save to session storage and trigger filtering
+    // Debounced filtering to avoid too many rapid updates
     const timeoutId = setTimeout(() => {
         try {
             // Get current search state from session storage
@@ -2660,14 +2958,15 @@ window.filterByColumn = function(columnIndex, columnName, searchValue) {
             // Save back to session storage
             sessionStorage.setItem(STORAGE_KEYS.COLUMN_SEARCH, JSON.stringify(searchState));
 
-            // Trigger filtering if no input is currently focused
-            if (focusedColumnInput === null) {
-                applySearchFromStorage();
-            }
+            console.log(`✅ Applying column search for ${columnName}: "${searchValue}"`);
+
+            // Apply filtering immediately for better user experience
+            applySearchFromStorage();
+
         } catch (e) {
-            console.error('Failed to save search state to session storage:', e);
+            console.error('❌ Failed to save search state to session storage:', e);
         }
-    }, 100); // 100ms debounce for saving
+    }, 50); // 50ms debounce for filtering
 
     searchTimeouts.set(columnIndex, timeoutId);
 };
@@ -2694,10 +2993,50 @@ window.setColumnSearchBlur = function(columnIndex) {
 
     renderTimeoutId = setTimeout(() => {
         if (isSearchDirty) {
-            performTableRender();
+            applySearchFromStorage();
             isSearchDirty = false;
         }
-    }, 200); // Short delay to allow for any debounced search to complete
+    }, 100); // Very short delay to allow for any debounced search to complete
+}
+
+// Bind event listeners to column search inputs after table render
+function bindColumnSearchEventListeners() {
+    console.log('🔧 Binding event listeners to column search inputs');
+
+    currentColumns.forEach((columnName, index) => {
+        const columnIndex = index + 1; // +1 because column 0 is the row number
+        const searchInput = document.getElementById(`col-search-${columnIndex}`);
+
+        if (searchInput) {
+            console.log(`✅ Found search input: col-search-${columnIndex} for column "${columnName}"`);
+
+            // Remove existing listeners to avoid duplicates
+            const newSearchInput = searchInput.cloneNode(true);
+            searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+
+            // Add event listeners
+            newSearchInput.addEventListener('keyup', function(e) {
+                console.log(`🔥 Keyup event on col-search-${columnIndex}: "${e.target.value}"`);
+                window.filterByColumn(columnIndex, columnName, e.target.value);
+            });
+
+            newSearchInput.addEventListener('focus', function(e) {
+                window.setColumnSearchFocus(columnIndex);
+            });
+
+            newSearchInput.addEventListener('blur', function(e) {
+                window.setColumnSearchBlur(columnIndex);
+            });
+
+            newSearchInput.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+
+            console.log(`✅ Bound event listeners to col-search-${columnIndex}`);
+        } else {
+            console.warn(`❌ Search input not found: col-search-${columnIndex} for column "${columnName}"`);
+        }
+    });
 }
 
 // Initialize session storage listener for search changes
@@ -2768,7 +3107,6 @@ function applySearchFromStorage() {
 
         if (hasChanges) {
             applyFiltersWithoutRender();
-            updatePagination();
 
             if (focusedColumnInput !== null) {
                 // Input is focused, mark as dirty and use background update
@@ -2792,11 +3130,35 @@ function applyFiltersWithoutRender() {
         return;
     }
 
-    filteredData = currentRows.filter(row => {
+    console.log('🔍 Applying filters with columnFilters:', Array.from(columnFilters.entries()));
+    console.log('🔍 Current columns:', currentColumns);
+    console.log('🔍 Column filter details:');
+    columnFilters.forEach((filter, columnName) => {
+        console.log(`  - ${columnName}:`, filter);
+    });
+
+    filteredData = currentRows.filter((row, index) => {
+        // Apply global search filter first
+        if (globalSearchFilter) {
+            let globalMatch = false;
+            for (const columnName of currentColumns) {
+                const cellValue = row[columnName];
+                const cellString = cellValue !== null && cellValue !== undefined ? String(cellValue) : '';
+
+                if (cellString.toLowerCase().includes(globalSearchFilter)) {
+                    globalMatch = true;
+                    break;
+                }
+            }
+            if (!globalMatch) return false;
+        }
+
         // Check each column filter
         for (const [columnName, filter] of columnFilters.entries()) {
             const cellValue = row[columnName];
             const cellString = cellValue !== null && cellValue !== undefined ? String(cellValue) : '';
+
+            console.log(`🔍 Row ${index}: Checking column "${columnName}" with value:`, cellValue, `(as string: "${cellString}")`, `searching for: "${filter.search}"`);
 
             // Apply search filter
             if (filter.search) {
@@ -2809,6 +3171,8 @@ function applyFiltersWithoutRender() {
                     matches = cellString.toLowerCase().includes(filter.search.toLowerCase());
                 }
 
+                console.log(`🔍 Row ${index}: ${columnName} "${cellString}" matches "${filter.search}"? ${matches}`);
+
                 if (!matches) return false;
             }
 
@@ -2819,6 +3183,12 @@ function applyFiltersWithoutRender() {
         }
 
         return true;
+    });
+
+    console.log('🔍 Filtered result:', {
+        originalRows: currentRows.length,
+        filteredRows: filteredData.length,
+        filteredData: filteredData
     });
 
     // Reset to first page
@@ -3282,13 +3652,21 @@ function updateFilterButtonAppearanceTemp(columnIndex, columnName) {
     const button = document.getElementById(`col-filter-btn-${columnIndex}`);
     const iconSpan = document.getElementById(`col-filter-icon-${columnIndex}`);
 
+    // Check if elements exist before trying to modify them
+    if (!button) {
+        console.warn(`Filter button not found: col-filter-btn-${columnIndex}`);
+        return;
+    }
+
     // Use temporary selections to show count
     const tempValues = window.tempFilterSelections[columnName] || [];
     const filterCount = tempValues.length;
 
     if (filterCount > 0) {
         button.className = 'btn btn-danger btn-sm';
-        iconSpan.textContent = `${filterCount} x`;
+        if (iconSpan) {
+            iconSpan.textContent = `${filterCount} x`;
+        }
     } else {
         // Check if there are applied filters when no temp selections
         const columnFilters = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.COLUMN_FILTERS) || '{}');
@@ -3297,10 +3675,14 @@ function updateFilterButtonAppearanceTemp(columnIndex, columnName) {
 
         if (appliedCount > 0) {
             button.className = 'btn btn-danger btn-sm';
-            iconSpan.textContent = `${appliedCount} x`;
+            if (iconSpan) {
+                iconSpan.textContent = `${appliedCount} x`;
+            }
         } else {
             button.className = 'btn btn-outline-primary btn-sm';
-            iconSpan.textContent = 'v';
+            if (iconSpan) {
+                iconSpan.textContent = 'v';
+            }
         }
     }
 
@@ -3312,6 +3694,12 @@ function updateFilterButtonAppearance(columnIndex, columnName) {
     const button = document.getElementById(`col-filter-btn-${columnIndex}`);
     const iconSpan = document.getElementById(`col-filter-icon-${columnIndex}`);
 
+    // Check if elements exist before trying to modify them
+    if (!button) {
+        console.warn(`Filter button not found: col-filter-btn-${columnIndex}`);
+        return;
+    }
+
     const columnFilters = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.COLUMN_FILTERS) || '{}');
     const filter = columnFilters[columnName] || { values: [] };
 
@@ -3319,10 +3707,14 @@ function updateFilterButtonAppearance(columnIndex, columnName) {
 
     if (filterCount > 0) {
         button.className = 'btn btn-danger btn-sm';
-        iconSpan.textContent = `${filterCount} x`;
+        if (iconSpan) {
+            iconSpan.textContent = `${filterCount} x`;
+        }
     } else {
         button.className = 'btn btn-outline-primary btn-sm';
-        iconSpan.textContent = 'v';
+        if (iconSpan) {
+            iconSpan.textContent = 'v';
+        }
     }
 
     console.log('Updated button appearance:', { columnName, filterCount });

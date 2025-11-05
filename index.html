@@ -134,13 +134,14 @@
                             type="text"
                             id="columnSearch"
                             class="form-control"
-                            placeholder="Go to column..."
+                            placeholder="Search all data or go to column..."
                             autocomplete="off"
                             role="combobox"
                             aria-expanded="false"
                             aria-autocomplete="list"
-                            oninput="searchAndGoToColumn(this)"
-                            onfocus="searchAndGoToColumn(this)"
+                            oninput="handleSearchInput(this)"
+                            onfocus="handleSearchFocus(this)"
+                            onkeydown="handleSearchKeydown(event)"
                             style="width: 300px;"
                         >
                         <div id="columnSuggestions" class="position-absolute top-100 start-0 end-0 bg-white border border-primary border-top-0 max-h-[200px] overflow-y-auto d-none shadow rounded-bottom" style="z-index: 99999;">
@@ -148,8 +149,17 @@
                         </div>
                     </div>
 
-                    <!-- Middle: Spanning space -->
-                    <div class="flex-grow-1"></div>
+                    <!-- Middle: Clear All Filters button -->
+                    <div class="mx-3 d-none" id="clearAllFiltersBtnContainer">
+                        <button
+                            id="clearAllFiltersBtn"
+                            class="btn btn-outline-warning btn-sm"
+                            onclick="clearAllFilters()"
+                            title="Clear all column filters">
+                            <i class="bi bi-funnel-x"></i>
+                            <span class="d-none d-md-inline">Clear All Filters</span>
+                        </button>
+                    </div>
 
                     <!-- Right: Export and Stats (no margin from right edge) -->
                     <div class="d-flex align-items-center gap-3 ms-auto">
