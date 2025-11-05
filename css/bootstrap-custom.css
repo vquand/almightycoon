@@ -106,6 +106,8 @@ body {
     cursor: pointer;
     padding: 0.625rem 0.75rem;
     font-size: 0.875rem;
+    border-bottom: 1px solid #e9ecef;
+    transition: all 0.15s ease;
 }
 
 .suggestion-item:hover {
@@ -117,11 +119,51 @@ body {
     color: white;
 }
 
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+/* Column suggestions dropdown */
+#columnSuggestions {
+    border: 1px solid #dee2e6 !important;
+    border-top: none !important;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    background-color: white !important;
+    z-index: 99999 !important;
+    position: absolute !important;
+    transform: translateZ(0) !important; /* Create new stacking context */
+}
+
+#columnSuggestions.show {
+    display: block !important;
+    z-index: 99999 !important;
+}
+
+/* Ensure search container allows dropdown to overflow */
+#columnSearch.parentElement {
+    overflow: visible !important;
+}
+
+/* Also ensure the parent padding container allows overflow */
+.right-panel .p-4 {
+    overflow: visible !important;
+}
+
+/* Column level indentation */
+.suggestion-level-1 { padding-left: 1.5rem !important; }
+.suggestion-level-2 { padding-left: 2.25rem !important; }
+.suggestion-level-3 { padding-left: 3rem !important; }
+.suggestion-level-4 { padding-left: 3.75rem !important; }
+
 /* Table Styles */
 .table {
     min-width: 100%;
     font-size: 0.875rem;
     table-layout: fixed; /* Fixed layout for better control */
+    border-collapse: separate; /* Required for sticky headers to work properly */
+    border-spacing: 0;
+    /* Ensure sticky headers work */
+    position: relative;
 }
 
 /* Alternative table with fixed layout for better control */
@@ -137,7 +179,6 @@ body {
     flex-direction: column;
     width: 100%;
     max-width: 100%;
-    overflow: hidden;
 }
 
 /* Table container styling */
@@ -148,6 +189,8 @@ body {
     width: 100%; /* Container fills available space */
     max-width: 100%; /* Container doesn't exceed parent */
     box-sizing: border-box; /* Include padding and border in width calculation */
+    /* Ensure sticky headers work properly */
+    transform: translateZ(0); /* Create new stacking context for sticky positioning */
 }
 
 /* Ensure table can scroll horizontally when needed */
@@ -156,6 +199,8 @@ body {
     width: auto; /* Allow table to be wider than container */
     max-width: none; /* Remove max-width constraint */
     box-sizing: border-box;
+    /* Ensure sticky headers work properly during horizontal scroll */
+    position: relative;
 }
 
 /* Add proper width constraint for table container */
@@ -165,10 +210,94 @@ body {
     box-sizing: border-box;
 }
 
-.table th {
+/* Alternative approach: Make table headers work with separate container */
+.sticky-header-container {
     position: sticky;
     top: 0;
-    z-index: 10;
+    z-index: 15;
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+}
+
+.sticky-header-container .table {
+    margin-bottom: 0;
+    table-layout: fixed;
+}
+
+.sticky-header-container .table thead th {
+    background-color: #374151 !important;
+    color: white !important;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    padding: 0.5rem;
+    vertical-align: top !important;
+    position: relative;
+}
+
+/* Table body container */
+.table-body-container {
+    overflow: auto;
+    overflow-x: auto;
+    max-height: calc(100vh - 350px);
+    position: relative;
+}
+
+/* Sticky header container */
+.sticky-header-container {
+    position: sticky;
+    top: 0;
+    z-index: 15;
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    overflow-x: auto;
+}
+
+.table-body-container .table {
+    margin-bottom: 0;
+    table-layout: fixed;
+}
+
+/* Sync horizontal scroll between header and body */
+#tableContainer {
+    position: relative;
+}
+
+/* Let JavaScript handle column widths dynamically */
+.sticky-header-container .table,
+.table-body-container .table {
+    table-layout: fixed;
+    width: 100%;
+}
+
+/* Initial styling - will be overridden by JavaScript */
+.sticky-header-container .table th,
+.table-body-container .table th,
+.table-body-container .table td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: top;
+}
+
+/* Row number column should be narrower */
+.sticky-header-container .table th:first-child,
+.table-body-container .table th:first-child,
+.table-body-container .table td:first-child {
+    width: 60px !important;
+    max-width: 60px !important;
+    min-width: 60px !important;
+    text-align: center;
+}
+
+/* Make table headers sticky with increased specificity */
+#tableContainer .table thead th {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 15 !important; /* High enough to be above content but below dropdown */
     font-size: 0.75rem;
     font-weight: 600;
     color: white !important;
@@ -177,6 +306,20 @@ body {
     padding: 0.5rem;
     background-color: #374151 !important;
     vertical-align: top !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Add subtle shadow for depth */
+    /* Ensure sticky positioning works in all browsers */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    /* Ensure proper stacking */
+    isolation: isolate;
+}
+
+/* Additional rule to make thead itself sticky */
+#tableContainer .table thead {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 14 !important;
+    transform: translateZ(0);
 }
 
 .table td, .table th {

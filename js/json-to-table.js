@@ -124,6 +124,12 @@ function updateFilterHeaderControls(columnIndex, columnName) {
     const button = document.getElementById(`col-filter-btn-${columnIndex}`);
     const searchInput = document.getElementById(`col-search-${columnIndex}`);
 
+    // Return early if elements don't exist yet
+    if (!button) {
+        console.warn(`Filter button not found: col-filter-btn-${columnIndex}`);
+        return;
+    }
+
     const columnFilters = JSON.parse(sessionStorage.getItem(STORAGE_KEYS.COLUMN_FILTERS) || '{}');
     const filter = columnFilters[columnName] || { values: [] };
     const filterCount = filter.values ? filter.values.length : 0;
@@ -327,8 +333,8 @@ function setupColumnSearch() {
                 break;
             case 'Enter':
                 e.preventDefault();
-                if (selectedColumnIndex >= 0 && filteredColumns[selectedColumnIndex]) {
-                    goToColumn(filteredColumns[selectedColumnIndex]);
+                if (selectedColumnIndex >= 0 && window.filteredColumns && window.filteredColumns[selectedColumnIndex]) {
+                    goToColumn(window.filteredColumns[selectedColumnIndex]);
                 }
                 break;
             case 'Escape':
@@ -350,6 +356,13 @@ function setupColumnSearch() {
     // Hide dropdown when clicking outside
     document.addEventListener('click', (e) => {
         if (!e.target.closest('#columnSearch') && !e.target.closest('#columnSuggestions')) {
+            hideColumnDropdown();
+        }
+    });
+
+    // Hide dropdown when pressing Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
             hideColumnDropdown();
         }
     });
@@ -401,6 +414,7 @@ function hideColumnDropdown() {
     const suggestions = document.getElementById('columnSuggestions');
     if (suggestions) {
         suggestions.classList.remove('show');
+        suggestions.classList.add('d-none');
         selectedColumnIndex = -1;
 
         // Update ARIA attributes
@@ -426,6 +440,9 @@ function updateSuggestionSelection() {
 
 // Go to column with enhanced navigation
 function goToColumn(columnName) {
+    console.log('=== goToColumn FUNCTION START ===');
+    console.log('goToColumn called with:', columnName);
+
     hideColumnDropdown();
 
     const searchInput = document.getElementById('columnSearch');
@@ -433,23 +450,31 @@ function goToColumn(columnName) {
         searchInput.value = columnName;
     }
 
-    // Find the column index in the table
-    const table = document.querySelector('table');
-    if (!table) {
-        console.warn('No table found for column navigation');
+    // Find the column index in the header table
+    const headerTable = document.querySelector('.sticky-header-container .table');
+    if (!headerTable) {
+        console.warn('No header table found for column navigation');
+        window.AllmightyUtils.showError('Header table not found');
         return;
     }
 
-    const headers = table.querySelectorAll('th');
+    const headers = headerTable.querySelectorAll('th');
     let columnIndex = -1;
 
+    console.log('Available headers:');
     headers.forEach((header, index) => {
         // Look for the column name in the header chip
         const headerChip = header.querySelector('.header-chip');
-        const headerText = headerChip ? headerChip.textContent.trim() : header.textContent.trim();
+        let headerText = headerChip ? headerChip.textContent.trim() : header.textContent.trim();
+
+        // Remove sort indicators (↑, ↓) and extra whitespace for matching
+        headerText = headerText.replace(/[↑↓]/g, '').trim();
+
+        console.log(`Header ${index}: "${headerText}" (original: "${headerChip ? headerChip.textContent.trim() : header.textContent.trim()}")`);
 
         if (headerText === columnName) {
             columnIndex = index;
+            console.log(`Found match at index ${index}`);
         }
     });
 
@@ -459,21 +484,48 @@ function goToColumn(columnName) {
         return;
     }
 
-    // Scroll to the column with smooth animation
-    const tableContainer = document.getElementById('tableContainer');
-    if (tableContainer) {
+    // Scroll to the column in both containers with smooth animation
+    const bodyContainer = document.querySelector('.table-body-container');
+    const headerContainer = document.querySelector('.sticky-header-container');
+
+    console.log('Containers found - bodyContainer:', !!bodyContainer, 'headerContainer:', !!headerContainer);
+
+    if (bodyContainer && headerContainer) {
         const header = headers[columnIndex];
         if (header) {
             const headerLeft = header.offsetLeft;
-            const containerWidth = tableContainer.clientWidth;
+            const containerWidth = bodyContainer.clientWidth;
             const headerWidth = header.offsetWidth;
             const scrollTarget = headerLeft - (containerWidth / 2) + (headerWidth / 2);
 
-            tableContainer.scrollTo({
+            console.log(`Scroll calculation details:`);
+            console.log(`  header.offsetLeft: ${headerLeft}`);
+            console.log(`  container.clientWidth: ${containerWidth}`);
+            console.log(`  header.offsetWidth: ${headerWidth}`);
+            console.log(`  calculated scrollTarget: ${scrollTarget}`);
+            console.log(`  final scroll position: ${Math.max(0, scrollTarget)}`);
+
+            // Check if containers can scroll
+            console.log(`Body container - scrollWidth: ${bodyContainer.scrollWidth}, clientWidth: ${bodyContainer.clientWidth}, canScroll: ${bodyContainer.scrollWidth > bodyContainer.clientWidth}`);
+            console.log(`Header container - scrollWidth: ${headerContainer.scrollWidth}, clientWidth: ${headerContainer.clientWidth}, canScroll: ${headerContainer.scrollWidth > headerContainer.clientWidth}`);
+
+            // Scroll both containers to ensure they stay in sync
+            const scrollOptions = {
                 left: Math.max(0, scrollTarget),
                 behavior: 'smooth'
-            });
+            };
+
+            console.log('About to scroll with options:', scrollOptions);
+            bodyContainer.scrollTo(scrollOptions);
+            headerContainer.scrollTo(scrollOptions);
+
+            // Check scroll position after scrolling
+            setTimeout(() => {
+                console.log(`After scroll - Body scrollLeft: ${bodyContainer.scrollLeft}, Header scrollLeft: ${headerContainer.scrollLeft}`);
+            }, 100);
         }
+    } else {
+        console.warn('Containers not found - bodyContainer:', !!bodyContainer, 'headerContainer:', !!headerContainer);
     }
 
     // Highlight the column temporarily with enhanced visual feedback
@@ -487,6 +539,17 @@ function goToColumn(columnName) {
     setTimeout(() => {
         window.AllmightyUtils.clearAllToasts();
     }, 3000);
+
+    // Add a simple test to check if scrolling works
+    console.log('Testing scroll capability...');
+    if (bodyContainer) {
+        console.log('Body container scrollLeft:', bodyContainer.scrollLeft, 'scrollWidth:', bodyContainer.scrollWidth, 'clientWidth:', bodyContainer.clientWidth);
+        console.log('Body can scroll:', bodyContainer.scrollWidth > bodyContainer.clientWidth);
+    }
+    if (headerContainer) {
+        console.log('Header container scrollLeft:', headerContainer.scrollLeft, 'scrollWidth:', headerContainer.scrollWidth, 'clientWidth:', headerContainer.clientWidth);
+        console.log('Header can scroll:', headerContainer.scrollWidth > headerContainer.clientWidth);
+    }
 
     // Add a subtle pulse animation to the column header
     const header = headers[columnIndex];
@@ -510,14 +573,143 @@ function getColumnLevel(columnName) {
     return (columnName.match(/\./g) || []).length;
 }
 
+// Ensure sticky headers work properly after table rendering
+function ensureStickyHeaders() {
+    const tableContainer = document.getElementById('tableContainer');
+    if (!tableContainer) return;
+
+    const headerContainer = tableContainer.querySelector('.sticky-header-container');
+    const bodyContainer = tableContainer.querySelector('.table-body-container');
+
+    if (!headerContainer || !bodyContainer) return;
+
+    // Synchronize horizontal scrolling between header and body
+    bodyContainer.addEventListener('scroll', () => {
+        headerContainer.scrollLeft = bodyContainer.scrollLeft;
+    });
+
+    // Set initial body container height
+    const availableHeight = window.innerHeight - 350; // Adjust as needed
+    bodyContainer.style.maxHeight = `${availableHeight}px`;
+
+    // Synchronize column widths
+    synchronizeColumnWidths();
+
+    // Re-synchronize after a short delay to ensure DOM is fully rendered
+    setTimeout(() => {
+        synchronizeColumnWidths();
+        restoreAllFilterButtonStates();
+    }, 100);
+
+    // Re-synchronize on window resize
+    window.addEventListener('resize', () => {
+        setTimeout(() => {
+            synchronizeColumnWidths();
+        }, 50);
+    });
+
+    // Log for debugging
+    console.log('Sticky headers with separate containers setup completed');
+}
+
+// Synchronize column widths between header and body tables
+function synchronizeColumnWidths() {
+    const headerTable = document.querySelector('.sticky-header-container .table');
+    const bodyTable = document.querySelector('.table-body-container .table');
+
+    if (!headerTable || !bodyTable) return;
+
+    // Get all header cells and body cells in the first row
+    const headerCells = headerTable.querySelectorAll('th');
+    const bodyCells = bodyTable.querySelectorAll('tbody tr:first-child td');
+
+    if (headerCells.length === 0 || bodyCells.length === 0) return;
+
+    // Create a temporary container to measure natural widths
+    const tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.visibility = 'hidden';
+    tempContainer.style.height = 'auto';
+    tempContainer.style.width = 'auto';
+    tempContainer.style.whiteSpace = 'nowrap';
+    tempContainer.style.fontFamily = window.getComputedStyle(headerTable).fontFamily;
+    tempContainer.style.fontSize = window.getComputedStyle(headerTable).fontSize;
+    document.body.appendChild(tempContainer);
+
+    try {
+        headerCells.forEach((headerCell, index) => {
+            if (bodyCells[index]) {
+                // Measure the natural width of the content in both cells
+                tempContainer.textContent = headerCell.textContent;
+                const headerContentWidth = tempContainer.offsetWidth;
+
+                tempContainer.textContent = bodyCells[index].textContent;
+                const bodyContentWidth = tempContainer.offsetWidth;
+
+                // Use the maximum width with some padding
+                const maxWidth = Math.max(headerContentWidth, bodyContentWidth, 120);
+                const finalWidth = Math.min(maxWidth, 300); // Cap at 300px
+
+                // Apply the same width to both cells
+                headerCell.style.width = `${finalWidth}px`;
+                headerCell.style.maxWidth = `${finalWidth}px`;
+                headerCell.style.minWidth = `${finalWidth}px`;
+
+                bodyCells[index].style.width = `${finalWidth}px`;
+                bodyCells[index].style.maxWidth = `${finalWidth}px`;
+                bodyCells[index].style.minWidth = `${finalWidth}px`;
+            }
+        });
+    } finally {
+        // Clean up the temporary container
+        document.body.removeChild(tempContainer);
+    }
+
+    // Force table layout to be fixed
+    headerTable.style.tableLayout = 'fixed';
+    bodyTable.style.tableLayout = 'fixed';
+
+    // Ensure both tables have the same total width
+    const headerWidth = headerTable.offsetWidth;
+    const bodyWidth = bodyTable.offsetWidth;
+
+    if (headerWidth !== bodyWidth) {
+        const maxWidth = Math.max(headerWidth, bodyWidth);
+        headerTable.style.width = `${maxWidth}px`;
+        bodyTable.style.width = `${maxWidth}px`;
+    }
+
+    console.log('Column widths synchronized');
+}
+
 // Highlight a column temporarily
 function highlightColumn(columnIndex) {
-    const table = document.querySelector('table');
-    if (!table) return;
+    const headerTable = document.querySelector('.sticky-header-container .table');
+    const bodyTable = document.querySelector('.table-body-container .table');
 
-    const rows = table.querySelectorAll('tr');
-    rows.forEach((row, rowIndex) => {
-        const cells = row.querySelectorAll('td, th');
+    if (!headerTable || !bodyTable) return;
+
+    // Highlight header cell
+    const headerCells = headerTable.querySelectorAll('th');
+    if (headerCells[columnIndex]) {
+        headerCells[columnIndex].style.backgroundColor = '#fff3cd';
+        headerCells[columnIndex].style.transition = 'background-color 1s ease';
+
+        setTimeout(() => {
+            if (headerCells[columnIndex]) {
+                headerCells[columnIndex].style.backgroundColor = '';
+            }
+        }, 1500);
+    }
+
+    // Highlight body cells in first few rows for performance
+    const bodyRows = bodyTable.querySelectorAll('tbody tr');
+    const maxRowsToHighlight = Math.min(bodyRows.length, 10); // Limit to first 10 rows for performance
+
+    bodyRows.forEach((row, rowIndex) => {
+        if (rowIndex >= maxRowsToHighlight) return;
+
+        const cells = row.querySelectorAll('td');
         if (cells[columnIndex]) {
             cells[columnIndex].style.backgroundColor = '#fff3cd';
             cells[columnIndex].style.transition = 'background-color 1s ease';
@@ -700,7 +892,81 @@ function resetUI() {
     if (fileInput) fileInput.value = '';
 }
 
-// Generate paginated table HTML
+// Generate table header HTML separately
+function generateTableHeaderHTML(columns) {
+    let html = '<thead><tr><th style="min-width: 60px; max-width: 60px;">#</th>';
+    columns.forEach((col, index) => {
+        const hierarchyClass = getColumnHierarchyClass(col);
+        const isArrayIndex = col.match(/\[\d+\]$/);
+        const arrayClass = isArrayIndex ? ' array-index' : '';
+        const sortIndicator = sortColumn === col ? (sortDirection === 'asc' ? ' ↑' : (sortDirection === 'desc' ? ' ↓' : '')) : '';
+        const columnIndex = index + 1; // +1 because column 0 is the row number
+
+        const uniqueValues = getUniqueValuesFromCache(col) || [];
+        const filterCount = (columnFilters.get(col)?.values?.size || 0);
+        const hasActiveFilter = filterCount > 0;
+
+        html += `
+        <th class="${hierarchyClass}${arrayClass}" style="min-width: 200px; max-width: 300px;">
+            <div class="column-controls">
+                <div class="header-chip" onclick="toggleColumnSort('${col.replace(/'/g, "\\'")}')">${col}${sortIndicator}</div>
+                <div class="d-flex align-items-center gap-1 mt-1">
+                    <button id="col-filter-btn-${columnIndex}"
+                            class="btn ${hasActiveFilter ? 'btn-danger' : 'btn-outline-primary'} btn-sm"
+                            onclick="toggleColumnFilter(${columnIndex}, '${col.replace(/'/g, "\\'")}', event)">
+                        <i class="bi bi-funnel${hasActiveFilter ? '-fill' : ''}"></i>
+                    </button>
+                    <input type="text"
+                           id="col-search-${columnIndex}"
+                           class="form-control form-control-sm"
+                           placeholder="Search ${col}..."
+                           style="width: 120px;">
+                </div>
+                <div class="column-filter-dropdown" id="col-filter-dropdown-${columnIndex}">
+                    <div class="d-flex gap-2 p-2 border-bottom">
+                        <button class="btn btn-outline-secondary btn-sm" onclick="clearColumnFilter(${columnIndex}, '${col.replace(/'/g, "\\'")}')">Clear</button>
+                        <button class="btn btn-primary btn-sm" onclick="applyColumnFilter(${columnIndex}, '${col.replace(/'/g, "\\'")}')">Apply</button>
+                    </div>
+                    <div id="col-filter-options-${columnIndex}">
+                        ${generateFilterOptions(col, uniqueValues)}
+                    </div>
+                </div>
+            </div>
+        </th>`;
+    });
+    html += '</tr></thead>';
+    return html;
+}
+
+// Generate table body HTML separately
+function generateTableBodyHTML(rows, columns) {
+    const startRowNum = (currentPage - 1) * pageSize + 1;
+
+    let html = '<tbody>';
+    rows.forEach((row, index) => {
+        const rowNum = startRowNum + index;
+        html += `<tr><td><strong>${rowNum}</strong></td>`;
+
+        columns.forEach(col => {
+            const cellValue = row[col] || '';
+            const displayValue = window.AllmightyUtils.escapeHtml(window.AllmightyUtils.formatValue(cellValue));
+            const isNumeric = isNumericColumn(col);
+            const alignment = isNumeric ? 'text-end' : 'text-start';
+            const hierarchyClass = getColumnHierarchyClass(col);
+            const isArrayIndex = col.match(/\[\d+\]$/);
+            const arrayClass = isArrayIndex ? ' array-index' : '';
+
+            html += `<td class="${hierarchyClass}${arrayClass} ${alignment}">
+                <div class="cell-content">${displayValue}</div>
+            </td>`;
+        });
+        html += '</tr>';
+    });
+    html += '</tbody>';
+    return html;
+}
+
+// Generate paginated table HTML (fallback)
 function generatePaginatedTableHTML(rows, columns) {
     // Get actual row numbers (considering pagination)
     const startRowNum = (currentPage - 1) * pageSize + 1;
@@ -986,9 +1252,33 @@ function renderPaginatedTable() {
         tableElement.innerHTML = generatePaginatedTableHTML(paginatedRows, currentColumns);
         fragment.appendChild(tableElement);
 
-        // Clear and append in one operation
+        // Clear and append in one operation with sticky header approach
         tableContainer.innerHTML = '';
-        tableContainer.appendChild(fragment);
+
+        // Create sticky header container
+        const headerContainer = document.createElement('div');
+        headerContainer.className = 'sticky-header-container';
+        const headerTable = document.createElement('table');
+        headerTable.className = 'table table-bordered';
+        headerTable.innerHTML = generateTableHeaderHTML(currentColumns);
+        headerContainer.appendChild(headerTable);
+
+        // Create body container
+        const bodyContainer = document.createElement('div');
+        bodyContainer.className = 'table-body-container';
+        bodyContainer.style.overflow = 'auto';
+        bodyContainer.style.maxHeight = 'calc(100vh - 300px)'; // Adjust height as needed
+        const bodyTable = document.createElement('table');
+        bodyTable.className = 'table table-striped table-hover table-bordered';
+        bodyTable.innerHTML = generateTableBodyHTML(paginatedRows, currentColumns);
+        bodyContainer.appendChild(bodyTable);
+
+        // Append both containers
+        tableContainer.appendChild(headerContainer);
+        tableContainer.appendChild(bodyContainer);
+
+        // Ensure sticky headers work properly
+        ensureStickyHeaders();
 
         hideLoadingState();
 
@@ -1517,6 +1807,9 @@ window.searchAndGoToColumn = function(e) {
         return a.localeCompare(b);
     });
 
+    // Store filtered columns globally for keyboard navigation
+    window.filteredColumns = filteredColumns;
+
     if (filteredColumns.length > 0) {
         showColumnDropdown(filteredColumns, searchTerm);
     } else {
@@ -1534,28 +1827,48 @@ function showColumnDropdown(columns, searchTerm) {
         let displayName = col;
         if (searchTerm && searchTerm.length > 0) {
             const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-            displayName = col.replace(regex, '<mark class="bg-yellow-200">$1</mark>');
+            displayName = col.replace(regex, '<mark class="bg-warning">$1</mark>');
         }
 
         // Show column hierarchy with indentation
         const level = getColumnLevel(col);
         const indentClass = level > 0 ? `suggestion-level-${Math.min(level, 4)}` : '';
 
+        // Escape single quotes for JavaScript
+        const escapedCol = col.replace(/'/g, "\\'");
+
         return `
-            <div class="suggestion-item ${indentClass} hover:bg-gray-50 cursor-pointer"
-                 onclick="goToColumn('${col}')"
-                 role="option">
-                <div class="flex items-center gap-2 p-2.5">
-                    <span class="column-name flex-1">${displayName}</span>
-                    <span class="text-xs text-gray-400">Col ${index + 1}</span>
+            <div class="suggestion-item ${indentClass} hover:bg-light cursor-pointer p-2 border-bottom"
+                 role="option" data-column="${window.AllmightyUtils.escapeHtml(col)}">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="column-name">${displayName}</span>
+                    <span class="text-muted small">Col ${index + 1}</span>
                 </div>
             </div>
         `;
     }).join('');
 
     suggestions.innerHTML = htmlContent;
-    suggestions.classList.remove('hidden');
+
+    // Add event listeners to each suggestion item
+    const suggestionItems = suggestions.querySelectorAll('.suggestion-item');
+    suggestionItems.forEach((item, index) => {
+        const columnName = columns[index];
+        item.addEventListener('click', () => {
+            console.log('Clicked column:', columnName);
+            goToColumn(columnName);
+        });
+    });
+
+    // Show dropdown by removing d-none and adding show
+    suggestions.classList.remove('d-none');
     suggestions.classList.add('show');
+
+    // Update ARIA attributes
+    const searchInput = document.getElementById('columnSearch');
+    if (searchInput) {
+        searchInput.setAttribute('aria-expanded', 'true');
+    }
 }
 
 // Show message when no columns are available
@@ -1564,19 +1877,25 @@ function showNoColumnsMessage() {
     if (!suggestions) return;
 
     suggestions.innerHTML = `
-        <div class="suggestion-item p-4 text-gray-500 text-center">
-            <div class="flex items-center gap-2 justify-center">
+        <div class="suggestion-item p-4 text-muted text-center">
+            <div class="d-flex align-items-center gap-2 justify-content-center">
                 <span>📊</span>
                 <span>No columns available</span>
             </div>
-            <div class="text-xs text-gray-400 mt-2">
+            <div class="small text-muted mt-2">
                 Convert JSON data first to see columns
             </div>
         </div>
     `;
 
-    suggestions.classList.remove('hidden');
+    suggestions.classList.remove('d-none');
     suggestions.classList.add('show');
+
+    // Update ARIA attributes
+    const searchInput = document.getElementById('columnSearch');
+    if (searchInput) {
+        searchInput.setAttribute('aria-expanded', 'true');
+    }
 }
 
 // Show message when no search results found
@@ -1585,19 +1904,25 @@ function showNoResultsMessage(searchTerm) {
     if (!suggestions) return;
 
     suggestions.innerHTML = `
-        <div class="suggestion-item p-4 text-gray-500 text-center">
-            <div class="flex items-center gap-2 justify-center">
+        <div class="suggestion-item p-4 text-muted text-center">
+            <div class="d-flex align-items-center gap-2 justify-content-center">
                 <span>🔍</span>
-                <span>No columns found for "${searchTerm}"</span>
+                <span>No columns found for "${window.AllmightyUtils.escapeHtml(searchTerm)}"</span>
             </div>
-            <div class="text-xs text-gray-400 mt-2">
+            <div class="small text-muted mt-2">
                 Try a different search term
             </div>
         </div>
     `;
 
-    suggestions.classList.remove('hidden');
+    suggestions.classList.remove('d-none');
     suggestions.classList.add('show');
+
+    // Update ARIA attributes
+    const searchInput = document.getElementById('columnSearch');
+    if (searchInput) {
+        searchInput.setAttribute('aria-expanded', 'true');
+    }
 }
 
 // Get column nesting level for indentation
@@ -1605,75 +1930,26 @@ function getColumnLevel(columnName) {
     return (columnName.match(/\./g) || []).length;
 }
 
-// Go to column with enhanced navigation
-window.goToColumn = function(columnName) {
-    hideColumnDropdown();
-
-    const searchInput = document.getElementById('columnSearch');
-    if (searchInput) {
-        searchInput.value = columnName;
-    }
-
-    // Find the column index in the table
-    const table = document.querySelector('table');
-    if (!table) return;
-
-    const headers = table.querySelectorAll('th');
-    let columnIndex = -1;
-
-    headers.forEach((header, index) => {
-        const headerChip = header.querySelector('.header-chip');
-        const headerText = headerChip ? headerChip.textContent.trim() : header.textContent.trim();
-
-        if (headerText === columnName) {
-            columnIndex = index;
-        }
-    });
-
-    if (columnIndex === -1) return;
-
-    // Scroll to the column with smooth animation
-    const tableContainer = document.getElementById('tableContainer');
-    if (tableContainer) {
-        const header = headers[columnIndex];
-        if (header) {
-            const headerLeft = header.offsetLeft;
-            const containerWidth = tableContainer.clientWidth;
-            const headerWidth = header.offsetWidth;
-            const scrollTarget = headerLeft - (containerWidth / 2) + (headerWidth / 2);
-
-            tableContainer.scrollTo({
-                left: Math.max(0, scrollTarget),
-                behavior: 'smooth'
-            });
-        }
-    }
-
-    // Highlight the column temporarily
-    highlightColumn(columnIndex);
-
-    // Show success message
-    window.AllmightyUtils.showSuccess(`🎯 Jumped to column "${columnName}" (${columnIndex + 1})`);
-    setTimeout(() => {
-        window.AllmightyUtils.clearAllToasts();
-    }, 3000);
-};
 
 // Hide column dropdown
 function hideColumnDropdown() {
+    console.log('hideColumnDropdown called');
     const suggestions = document.getElementById('columnSuggestions');
     if (suggestions) {
+        console.log('Hiding dropdown suggestions');
         suggestions.classList.remove('show');
-        suggestions.classList.add('hidden');
+        suggestions.classList.add('d-none');
+
+        // Update ARIA attributes
+        const searchInput = document.getElementById('columnSearch');
+        if (searchInput) {
+            searchInput.setAttribute('aria-expanded', 'false');
+        }
+    } else {
+        console.log('Suggestions element not found');
     }
 }
 
-// Hide dropdown when clicking outside
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('#columnSearch') && !e.target.closest('#columnSuggestions')) {
-        hideColumnDropdown();
-    }
-});
 
 // Make functions globally available
 window.showPathExplorer = showPathExplorer;
