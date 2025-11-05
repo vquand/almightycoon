@@ -91,8 +91,8 @@ Almightycoon is a single HTML application that allows users to convert and trans
 ## Development
 
 This project is built with:
-- **Frontend**: Vanilla JavaScript (ES6+), HTML5 semantic markup
-- **Styling**: Tailwind CSS 3.4+ with custom configuration
+- **Frontend**: Vanilla JavaScript (ES6+), HTML5 semantic markup, Bootstraps 5
+- **Styling**: Bootstraps 5 with custom configuration
 - **Build Tools**: PostCSS, Autoprefixer for CSS optimization
 - **Development**: Live CSS compilation with file watching
 - **Package Management**: npm for dependency management
@@ -123,8 +123,6 @@ This project is built with:
 
 ```
 almightycoon/
-├── src/
-│   └── input.css          # Tailwind CSS source file
 ├── css/
 │   └── styles.css          # Compiled CSS (generated)
 ├── js/
@@ -133,7 +131,6 @@ almightycoon/
 │   ├── table-to-json.js   # Future features
 │   └── main.js            # Application entry point
 ├── index.html             # Main HTML file
-├── tailwind.config.js     # Tailwind CSS configuration
 ├── postcss.config.js      # PostCSS configuration
 └── package.json           # Dependencies and scripts
 ```
