@@ -557,6 +557,16 @@ body {
     font-size: 0.875rem;
 }
 
+/* Prevent visual flashing in timezone converter form selects */
+.converter-module .form-select {
+    transition: none;
+}
+
+.converter-module .form-select:focus {
+    transform: none;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
 /* Textarea styling */
 .form-control:focus {
     border-color: #4facfe;
@@ -583,4 +593,645 @@ body {
 /* Column search input group styling */
 .input-group-sm .form-control {
     font-size: 0.875rem;
+}
+
+/* Converter Dropdown Styling */
+#converterDropdown {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    color: #374151 !important;
+    border: 2px solid rgba(255, 255, 255, 0.7) !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+}
+
+#converterDropdown:hover {
+    background-color: rgba(255, 255, 255, 1) !important;
+    border-color: rgba(255, 255, 255, 1) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+#converterDropdown:focus {
+    background-color: white !important;
+    color: #374151 !important;
+    border-color: white !important;
+    box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.25) !important;
+}
+
+#converterDropdown.dropdown-toggle::after {
+    filter: brightness(0.5); /* Make arrow darker for contrast */
+}
+
+/* Dropdown Menu Styling */
+.dropdown-menu {
+    border: 1px solid #dee2e6 !important;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    border-radius: 0.375rem !important;
+    padding: 0.5rem 0 !important;
+    background-color: white !important;
+}
+
+.dropdown-item {
+    padding: 0.5rem 1rem !important;
+    color: #374151 !important;
+    font-weight: 500 !important;
+    transition: all 0.15s ease !important;
+}
+
+.dropdown-item:hover {
+    background-color: #f8f9fa !important;
+    color: #0d6efd !important;
+}
+
+.dropdown-item.active {
+    background-color: #4facfe !important;
+    color: white !important;
+}
+
+.dropdown-item.active:hover {
+    background-color: #3d8bfd !important;
+}
+
+.dropdown-item i {
+    color: inherit !important;
+    opacity: 0.8 !important;
+}
+
+.dropdown-item.active i {
+    opacity: 1 !important;
+}
+
+/* Dark header adjustments */
+.navbar-dark #converterDropdown {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    color: #374151 !important;
+    border-color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.navbar-dark .dropdown-menu {
+    background-color: white !important;
+    border: 1px solid #dee2e6 !important;
+}
+
+/* Button Group Styling for Module Selection */
+.btn-group .btn-light {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    color: #374151 !important;
+    border: 2px solid rgba(255, 255, 255, 0.7) !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+    white-space: nowrap;
+}
+
+.btn-group .btn-light:hover {
+    background-color: rgba(255, 255, 255, 1) !important;
+    color: #0d6efd !important;
+    border-color: rgba(255, 255, 255, 1) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.btn-group .btn-light:focus {
+    background-color: white !important;
+    color: #374151 !important;
+    border-color: white !important;
+    box-shadow: 0 0 0 0.25rem rgba(255, 255, 255, 0.25) !important;
+}
+
+.btn-group .btn-light.active {
+    background-color: #4facfe !important;
+    color: white !important;
+    border-color: #4facfe !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(79, 172, 254, 0.3);
+}
+
+.btn-group .btn-light.active:hover {
+    background-color: #3d8bfd !important;
+    color: white !important;
+    border-color: #3d8bfd !important;
+}
+
+.btn-group .btn-light i {
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.btn-group .btn-light:hover i {
+    opacity: 1;
+}
+
+.btn-group .btn-light.active i {
+    opacity: 1;
+}
+
+/* Remove dropdown-specific styles */
+.dropdown {
+    position: relative;
+    z-index: 1000;
+}
+
+.dropdown-menu.show {
+    z-index: 1001;
+}
+
+/* Timezone Converter Module Styles - Full Page Layout */
+.converter-module {
+    position: fixed;
+    top: 76px; /* Header height */
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: calc(100vh - 76px);
+    overflow: hidden;
+    background-color: #f8f9fa;
+    z-index: 1000;
+    display: none;
+}
+
+.converter-module.active {
+    display: block;
+}
+
+.converter-module .timezone-container {
+    height: 100%;
+    display: flex;
+    overflow: hidden;
+}
+
+.converter-module .left-panel {
+    width: 40%;
+    min-width: 350px;
+    background-color: white;
+    border-right: 1px solid #dee2e6;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.converter-module .right-panel {
+    flex: 1;
+    background-color: white;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.converter-module .panel-header {
+    padding: 1rem;
+    border-bottom: 1px solid #dee2e6;
+    background-color: #f8f9fa;
+    flex-shrink: 0;
+}
+
+.converter-module .panel-content {
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+.converter-module .settings-panel {
+    border-top: 1px solid #dee2e6;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    flex-shrink: 0;
+}
+
+.converter-module:not(.d-none) {
+    display: flex;
+    visibility: visible;
+    opacity: 1;
+}
+
+.converter-module .col-lg-5,
+.converter-module .col-md-4,
+.converter-module .col-lg-7,
+.converter-module .col-md-8 {
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Fix scrolling for timezone converter panels */
+.converter-module .d-flex.flex-column {
+    height: 100vh;
+    overflow: hidden;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.converter-module .col-lg-5 > .d-flex.flex-column,
+.converter-module .col-md-4 > .d-flex.flex-column {
+    max-height: 100%;
+}
+
+/* Enable scrolling for target timezones section */
+.converter-module .col-lg-5 .p-4:nth-child(2) {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    max-height: calc(40vh - 150px) !important;
+    min-height: 200px !important;
+}
+
+/* Make the left panel scrollable if content overflows */
+.converter-module .col-lg-5 {
+    overflow-y: auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    max-height: 100vh !important;
+}
+
+/* Settings section always visible and fixed at bottom */
+.converter-module .p-4.border-top.border-gray-200.bg-light {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 40% !important; /* Match the col-lg-5 width */
+    background-color: #f8f9fa !important;
+    border-top: 2px solid #dee2e6 !important;
+    z-index: 1000 !important;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.15) !important;
+    padding: 1rem !important;
+    max-height: 40vh !important;
+    overflow-y: auto !important;
+}
+
+/* Adjust left panel content to account for fixed settings */
+.converter-module .col-lg-5 > .d-flex.flex-column > :not(.border-top.bg-light) {
+    margin-bottom: 40vh !important; /* Reserve space for settings */
+}
+
+/* Target timezones section should be scrollable */
+.converter-module .col-lg-5 .p-4:nth-child(2) {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    max-height: 30vh !important;
+    border: 1px solid #e9ecef;
+    border-radius: 0.375rem;
+    background-color: white;
+}
+
+/* Enable scrolling for results section */
+.converter-module .col-lg-7 .flex-grow-1 {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    max-height: calc(100vh - 300px) !important;
+}
+
+/* Ensure proper flexbox layout */
+.converter-module .col-lg-5 > .d-flex.flex-column {
+    height: 100%;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.converter-module .col-lg-5 > .d-flex.flex-column > *:not(.flex-grow-1) {
+    flex-shrink: 0;
+}
+
+.converter-module .col-lg-5 > .d-flex.flex-column > .flex-grow-1 {
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Ensure settings section is always visible */
+.converter-module .p-4.border-top {
+    flex-shrink: 0 !important;
+    position: relative !important;
+    z-index: 10 !important;
+}
+
+/* Fix timezone container scrolling */
+.converter-module .timezone-suggestions {
+    max-height: 200px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+}
+
+/* Timezone items styling */
+.timezone-item {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef !important;
+    transition: all 0.2s ease;
+    cursor: default;
+}
+
+.timezone-item:hover {
+    background-color: #e9ecef;
+    border-color: #dee2e6 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.timezone-suggestions {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    background-color: white;
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.timezone-suggestions .list-group-item {
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border-radius: 0 !important;
+}
+
+.timezone-suggestions .list-group-item:hover {
+    background-color: #f8f9fa;
+    transform: translateX(2px);
+}
+
+.timezone-suggestions .list-group-item:first-child {
+    border-top-left-radius: 0.375rem !important;
+    border-top-right-radius: 0.375rem !important;
+}
+
+.timezone-suggestions .list-group-item:last-child {
+    border-bottom-left-radius: 0.375rem !important;
+    border-bottom-right-radius: 0.375rem !important;
+}
+
+/* Conversion results styling */
+.conversion-summary {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-left: 4px solid #4facfe;
+}
+
+.conversion-results .card {
+    transition: all 0.2s ease;
+    border: 1px solid #e9ecef;
+    height: 100%;
+}
+
+.conversion-results .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-color: #4facfe;
+}
+
+.conversion-results .card-title {
+    color: #374151;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.conversion-results .card-text code {
+    background-color: #f1f5f9;
+    color: #1e293b;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+    border: 1px solid #e2e8f0;
+    display: block;
+    word-break: break-all;
+}
+
+.conversion-results .btn-sm {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* Status bar styling */
+#conversionStatus {
+    font-size: 0.875rem;
+    transition: all 0.3s ease;
+}
+
+#conversionStatus i {
+    margin-right: 0.25rem;
+}
+
+/* Custom format section */
+#customFormatSection {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.375rem;
+    border: 1px dashed #dee2e6;
+    margin-top: 0.5rem;
+}
+
+#customFormatSection .form-control:focus {
+    border-color: #4facfe;
+    box-shadow: 0 0 0 0.2rem rgba(79, 172, 254, 0.25);
+}
+
+/* Settings panel improvements */
+.converter-module .form-check {
+    padding: 0.25rem 0;
+}
+
+.converter-module .form-check-input:checked {
+    background-color: #4facfe;
+    border-color: #4facfe;
+}
+
+.converter-module .form-check-input:focus {
+    border-color: #4facfe;
+    box-shadow: 0 0 0 0.2rem rgba(79, 172, 254, 0.25);
+}
+
+/* Time input styling */
+#timeInput {
+    font-family: 'Courier New', monospace;
+    font-size: 0.95rem;
+}
+
+#timeInput:focus {
+    border-color: #4facfe;
+    box-shadow: 0 0 0 0.2rem rgba(79, 172, 254, 0.25);
+}
+
+/* Timezone search styling */
+#timezoneSearch {
+    font-size: 0.875rem;
+}
+
+#timezoneSearch:focus {
+    border-color: #4facfe;
+    box-shadow: 0 0 0 0.2rem rgba(79, 172, 254, 0.25);
+}
+
+/* Help modal styling */
+#helpModal .modal-body {
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+#helpModal .modal-body h6 {
+    color: #4facfe;
+    font-weight: 600;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+}
+
+#helpModal .modal-body ul {
+    margin-bottom: 1rem;
+}
+
+#helpModal .modal-body li {
+    margin-bottom: 0.5rem;
+}
+
+/* Responsive adjustments for timezone converter */
+@media (max-width: 992px) {
+    .converter-module .col-lg-5 {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+
+    .converter-module .col-lg-7 {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+}
+
+@media (max-width: 768px) {
+    .converter-module .row {
+        flex-direction: column;
+    }
+
+    .converter-module .col-md-4,
+    .converter-module .col-md-8 {
+        flex: 0 0 100%;
+        max-width: 100%;
+        height: 50%;
+    }
+
+    .converter-module .col-md-4 {
+        border-right: none;
+        border-bottom: 1px solid #e9ecef;
+    }
+}
+
+@media (max-width: 576px) {
+    .converter-module {
+        height: calc(100vh - 120px); /* Account for smaller header on mobile */
+    }
+
+    .conversion-results .row {
+        gap: 0.5rem;
+    }
+
+    .conversion-results .col-md-6,
+    .conversion-results .col-lg-4 {
+        flex: 0 0 calc(50% - 0.25rem);
+        max-width: calc(50% - 0.25rem);
+    }
+
+    .converter-module .btn-sm {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+
+    .timezone-item {
+        padding: 0.75rem !important;
+    }
+
+    .timezone-item .d-flex {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 0.5rem;
+    }
+
+    .timezone-item .btn-sm {
+        align-self: flex-end;
+    }
+}
+
+/* Loading states */
+.converter-module .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.converter-module .spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.1rem;
+}
+
+/* Success/error states */
+.converter-module .is-valid {
+    border-color: #22d3ee;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3e%3cpath fill='%2322d3ee' d='M2.3 6.73L.6 4.53c-.4-1.04.46-1.4 1.1-.8l1.1 1.4 3.4-3.8c.6-.63 1.6-.27 1.2.7l-4 4.6c-.43.5-.8.4-1.1.1z'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right calc(0.375em + 0.1875rem) center;
+    background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+    padding-right: calc(1.5em + 0.75rem);
+}
+
+.converter-module .is-invalid {
+    border-color: #ef4444;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' width='12' height='12' fill='none' stroke='%23ef4444'%3e%3ccircle cx='6' cy='6' r='4.5'/%3e%3cpath stroke-linejoin='round' d='M5.8 3.6h.4L6 6.5z'/%3e%3ccircle cx='6' cy='8.2' r='.6' fill='%23ef4444' stroke='none'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right calc(0.375em + 0.1875rem) center;
+    background-size: calc(0.75em + 0.375rem) calc(0.75em + 0.375rem);
+    padding-right: calc(1.5em + 0.75rem);
+}
+
+/* Animation for timezone items */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.timezone-item {
+    animation: slideIn 0.3s ease-out;
+}
+
+/* Hover effects for timezone suggestions */
+.timezone-suggestions .list-group-item:active {
+    background-color: #e2e6ea;
+    transform: scale(0.98);
+}
+
+/* Improved accessibility */
+.timezone-item:focus-within {
+    outline: 2px solid #4facfe;
+    outline-offset: 2px;
+}
+
+.converter-module .btn:focus {
+    box-shadow: 0 0 0 0.2rem rgba(79, 172, 254, 0.25);
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .timezone-item {
+        border-width: 2px;
+    }
+
+    .conversion-results .card {
+        border-width: 2px;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .timezone-item,
+    .conversion-results .card,
+    .converter-module .btn {
+        transition: none;
+    }
+
+    .timezone-item:hover {
+        transform: none;
+    }
+
+    .conversion-results .card:hover {
+        transform: none;
+    }
+
+    .converter-module .btn:hover {
+        transform: none;
+    }
 }

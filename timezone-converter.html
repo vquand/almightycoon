@@ -1,0 +1,1569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Almightycoon - Timezone Converter</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="css/bootstrap-custom.css" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .header {
+            height: 76px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            padding: 0 2rem;
+            color: white;
+        }
+
+        .timezone-converter-full {
+            position: fixed;
+            top: 76px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #f8f9fa;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .converter-left {
+            width: 40%;
+            min-width: 400px;
+            background: white;
+            border-right: 1px solid #dee2e6;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .unified-panel {
+            flex: 1;
+            overflow-y: auto;
+            background: white;
+        }
+
+        .unified-panel .p-4 {
+            max-width: 100%;
+        }
+
+        .converter-right {
+            flex: 1;
+            background: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #dee2e6;
+            background: #f8f9fa;
+        }
+
+        .section-content {
+            flex: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .section-footer {
+            padding: 1.5rem;
+            border-top: 1px solid #dee2e6;
+            background: #f8f9fa;
+        }
+
+        .timezone-item {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+            margin-bottom: 0.5rem;
+            background: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .timezone-item .timezone-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .timezone-item .timezone-name {
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .timezone-item .timezone-separator {
+            color: #adb5bd;
+            font-size: 0.875rem;
+            user-select: none;
+        }
+
+        .timezone-item .timezone-description {
+            font-size: 0.875rem;
+            color: #495057;
+        }
+
+        .timezone-item .timezone-utc {
+            font-size: 0.875rem;
+            color: #6c757d;
+            font-weight: 500;
+        }
+
+        .back-button {
+            position: fixed;
+            top: 90px;
+            left: 20px;
+            z-index: 1001;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+        }
+
+        /* Conversion Matrix Styling */
+        .conversion-matrix th {
+            vertical-align: middle;
+            font-size: 0.875rem;
+        }
+
+        .conversion-matrix .timezone-conversion {
+            padding: 0.5rem;
+        }
+
+        .conversion-matrix .formats {
+            font-size: 0.75rem;
+            line-height: 1.2;
+        }
+
+        .format-full { color: #2d3748; }
+        .format-date { color: #28a745; }
+        .format-time { color: #007bff; }
+        .format-iso { color: #6f42c1; }
+        .format-timestamp { color: #fd7e14; }
+        .format-rfc { color: #6c757d; }
+        .format-custom { color: #e83e8c; }
+
+        .copyable {
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            display: inline-block;
+            line-height: 1.4;
+        }
+
+        .copyable:hover {
+            background-color: #f8f9fa;
+            transform: scale(1.05);
+        }
+
+        .copyable:active {
+            transform: scale(0.95);
+        }
+
+        .formats {
+            font-size: 0.8rem;
+            line-height: 1.6;
+        }
+
+        /* Timezone dropdown styles */
+        #availableTimezones {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            width: 100%;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-radius: 8px;
+            margin-top: 4px;
+        }
+
+        #availableTimezones .card {
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+
+        .timezone-suggestion {
+            transition: background-color 0.15s ease-in-out;
+        }
+
+        .timezone-suggestion:last-child {
+            border-bottom: none !important;
+        }
+
+        .timezone-suggestion:hover {
+            background-color: #f8f9fa !important;
+        }
+
+        /* Search input improvements */
+        #timezoneSearch {
+            position: relative;
+        }
+
+        #timezoneSearch:focus + #availableTimezones {
+            /* Keep dropdown open when search is focused */
+        }
+    </style>
+</head>
+<body>
+    <button class="back-button" onclick="window.location.href='index.html?module=json-to-table'">
+        <i class="bi bi-arrow-left"></i> Back to JSON to Table
+    </button>
+
+    <!-- Header -->
+    <div class="header">
+        <h1 class="h3 mb-0">
+            <i class="bi bi-globe2 me-2"></i>
+            Almightycoon - Multi-Timezone Converter
+        </h1>
+    </div>
+
+    <!-- Timezone Converter -->
+    <div class="timezone-converter-full">
+        <!-- Left Panel -->
+        <div class="converter-left">
+            <!-- Unified Content Panel -->
+            <div class="unified-panel">
+                <div class="p-4">
+                    <!-- Time Input Section -->
+                    <div class="mb-4">
+                        <h2 class="h5 mb-3">
+                            <i class="bi bi-clock me-2"></i>Time Input
+                        </h2>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Enter Time or Timestamp:</label>
+                            <div class="input-group mb-2">
+                                <input type="text" id="timeInput" class="form-control"
+                                       placeholder="e.g., 2025-11-06 14:30, now, 1730896200">
+                                <button class="btn btn-outline-secondary" type="button" onclick="set currentTime()">
+                                    <i class="bi bi-clock-fill"></i> Now
+                                </button>
+                                <button class="btn btn-primary" type="button" onclick="convertTime()">
+                                    <i class="bi bi-arrow-repeat"></i> Convert
+                                </button>
+                            </div>
+                            <div class="form-text">Supports ISO format, timestamps, natural language</div>
+                        </div>
+
+                        <button class="btn btn-outline-secondary w-100" onclick="clearAll()">
+                            <i class="bi bi-x-circle me-1"></i>Clear All
+                        </button>
+                    </div>
+
+                    <!-- Input Format Configuration Section -->
+                    <div class="mb-4 p-3 bg-info bg-opacity-10 border rounded">
+                        <h3 class="h6 mb-3">
+                            <i class="bi bi-input-cursor-text me-1"></i>Input Date Formats
+                        </h3>
+
+                        <!-- Preset input formats -->
+                        <div class="mb-3">
+                            <small class="text-muted">Select formats to try (in priority order):</small>
+                            <div class="mt-2">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="inputAuto" value="auto" checked>
+                                    <label class="form-check-label" for="inputAuto">Auto-detect</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="inputISO" value="iso" checked>
+                                    <label class="form-check-label" for="inputISO">ISO 8601</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="inputUS" value="us">
+                                    <label class="form-check-label" for="inputUS">US Format</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="inputEU" value="eu">
+                                    <label class="form-check-label" for="inputEU">European</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" id="inputUnix" value="unix">
+                                    <label class="form-check-label" for="inputUnix">Unix Timestamp</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Custom input formats -->
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Custom Input Formats:</label>
+                            <div id="customInputFormatsList">
+                                <div class="input-group input-group-sm mb-2">
+                                    <input type="text" class="form-control custom-input-format"
+                                           placeholder="e.g., YYYY-MM-DD HH:mm:ss">
+                                    <button class="btn btn-outline-danger" type="button" onclick="removeCustomInputFormat(this)" style="margin-left: 8px;">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="addCustomInputFormat()">
+                                <i class="bi bi-plus-circle me-1"></i>Add Custom Format
+                            </button>
+                        </div>
+
+                        <div class="form-text">
+                            <small>Formats will be tried in order. First successful parse will be used.</small>
+                        </div>
+                    </div>
+
+                    <!-- Target Timezones Section -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h3 class="h6 mb-0">
+                                <i class="bi bi-globe2 me-2"></i>Target Timezones
+                            </h3>
+                            <button class="btn btn-outline-primary btn-sm" onclick="addTimezone()">
+                                <i class="bi bi-plus-circle me-1"></i> Add
+                            </button>
+                        </div>
+
+                        <div id="targetTimezones" class="timezone-list mb-3">
+                            <!-- Timezones will be added here -->
+                        </div>
+
+                        <div class="mb-3 position-relative">
+                            <input type="text" id="timezoneSearch" class="form-control form-control-sm"
+                                   placeholder="Search timezone..."
+                                   onkeyup="filterTimezones(this.value)">
+
+                            <div id="availableTimezones" style="display: none;" class="mt-2">
+                                <!-- Timezone suggestions -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Output Format Configuration Section -->
+                    <div class="mb-4 p-3 bg-light border rounded">
+                        <h3 class="h6 mb-3">
+                            <i class="bi bi-code-slash me-1"></i>Output Formats
+                        </h3>
+
+                        <!-- Preset output formats -->
+                        <div class="mb-3">
+                            <small class="text-muted">Select formats to generate:</small>
+                            <div class="mt-2">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input output-format" type="checkbox" id="outputFull" value="full" checked>
+                                    <label class="form-check-label" for="outputFull">Full</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input output-format" type="checkbox" id="outputDate" value="date">
+                                    <label class="form-check-label" for="outputDate">Date</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input output-format" type="checkbox" id="outputTime" value="time">
+                                    <label class="form-check-label" for="outputTime">Time</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input output-format" type="checkbox" id="outputISO" value="iso" checked>
+                                    <label class="form-check-label" for="outputISO">ISO</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input output-format" type="checkbox" id="outputUnix" value="timestamp">
+                                    <label class="form-check-label" for="outputUnix">Unix</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input output-format" type="checkbox" id="outputRFC" value="rfc">
+                                    <label class="form-check-label" for="outputRFC">RFC</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input output-format" type="checkbox" id="outputCustom" value="custom">
+                                    <label class="form-check-label" for="outputCustom">Custom</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Custom output formats -->
+                        <div class="mb-2">
+                            <label class="form-label small fw-semibold">Custom Output Formats:</label>
+                            <div id="customOutputFormatsList">
+                                <div class="input-group input-group-sm mb-2">
+                                    <input type="text" class="form-control custom-output-format"
+                                           placeholder="Format name">
+                                    <input type="text" class="form-control custom-output-pattern"
+                                           placeholder="Pattern: YYYY-MM-DD HH:mm:ss">
+                                    <button class="btn btn-outline-danger" type="button" onclick="removeCustomOutputFormat(this)" style="margin-left: 8px;">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="addCustomOutputFormat()">
+                                <i class="bi bi-plus-circle me-1"></i>Add Custom Output Format
+                            </button>
+                        </div>
+
+                        <!-- Quick format templates -->
+                        <div class="mb-3 p-3 bg-white border rounded">
+                            <label class="form-label small fw-semibold">Quick Templates:</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button class="btn btn-sm btn-outline-primary" onclick="addFormatTemplate('YYYY-MM-DD')">
+                                    2025-01-15
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary" onclick="addFormatTemplate('MM/DD/YYYY')">
+                                    01/15/2025
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary" onclick="addFormatTemplate('DD.MM.YYYY')">
+                                    15.01.2025
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary" onclick="addFormatTemplate('YYYY-MM-DD HH:mm')">
+                                    2025-01-15 14:30
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary" onclick="addFormatTemplate('hh:mm:ss A')">
+                                    02:30:45 PM
+                                </button>
+                                <button class="btn btn-sm btn-outline-primary" onclick="addFormatTemplate('ddd, MMM D, YYYY')">
+                                    Wed, Jan 15, 2025
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="form-text">
+                            <small>Multiple formats will be shown for each timezone in results.</small>
+                        </div>
+                    </div>
+
+                    <!-- Save All Settings Button -->
+                    <button class="btn btn-success w-100" onclick="saveAllSettings()">
+                        <i class="bi bi-check-circle me-1"></i>Save All Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="converter-right">
+            <div class="section-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2 class="h5 mb-0">
+                        <i class="bi bi-table me-2"></i>Conversion Results
+                    </h2>
+                    <div id="conversionStatus" class="text-muted">
+                        <i class="bi bi-info-circle me-1"></i> Ready
+                    </div>
+                </div>
+            </div>
+
+            <div id="conversionResults" class="section-content">
+                <div class="text-center p-5 text-muted">
+                    <i class="bi bi-clock" style="font-size: 3rem; opacity: 0.3;"></i>
+                    <h4 class="mt-3 mb-2">Ready to Convert Time</h4>
+                    <p class="mb-0">Enter a time and select target timezones to see conversion results</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Initialize timezone converter when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Timezone Converter initialized with built-in functionality');
+            // Load saved settings first, then add default timezones if needed
+            loadAllSettings();
+        });
+
+        // Multiple format management functions
+        function addCustomInputFormat() {
+            console.log('addCustomInputFormat called');
+            const container = document.getElementById('customInputFormatsList');
+
+            if (!container) {
+                console.error('customInputFormatsList container not found!');
+                alert('Error: Could not find custom input formats container. Please refresh the page and try again.');
+                return;
+            }
+
+            console.log('Container found:', container);
+
+            const formatGroup = document.createElement('div');
+            formatGroup.className = 'input-group input-group-sm mb-2';
+            formatGroup.innerHTML = `
+                <input type="text" class="form-control custom-input-format"
+                       placeholder="e.g., YYYY-MM-DD HH:mm:ss">
+                <button class="btn btn-outline-danger" type="button" onclick="removeCustomInputFormat(this)" style="margin-left: 8px;">
+                    <i class="bi bi-trash"></i>
+                </button>
+            `;
+
+            try {
+                container.appendChild(formatGroup);
+                console.log('Custom input format added successfully');
+            } catch (error) {
+                console.error('Error adding custom input format:', error);
+                alert('Error adding custom input format: ' + error.message);
+            }
+        }
+
+        function removeCustomInputFormat(button) {
+            button.parentElement.remove();
+        }
+
+        function addCustomOutputFormat() {
+            console.log('addCustomOutputFormat called');
+            const container = document.getElementById('customOutputFormatsList');
+
+            if (!container) {
+                console.error('customOutputFormatsList container not found!');
+                alert('Error: Could not find custom output formats container. Please refresh the page and try again.');
+                return;
+            }
+
+            console.log('Container found:', container);
+
+            const formatGroup = document.createElement('div');
+            formatGroup.className = 'input-group input-group-sm mb-2';
+            formatGroup.innerHTML = `
+                <input type="text" class="form-control custom-output-format"
+                       placeholder="Format name">
+                <input type="text" class="form-control custom-output-pattern"
+                       placeholder="Pattern: YYYY-MM-DD HH:mm:ss">
+                <button class="btn btn-outline-danger" type="button" onclick="removeCustomOutputFormat(this)" style="margin-left: 8px;">
+                    <i class="bi bi-trash"></i>
+                </button>
+            `;
+
+            try {
+                container.appendChild(formatGroup);
+                console.log('Custom output format added successfully');
+            } catch (error) {
+                console.error('Error adding custom output format:', error);
+                alert('Error adding custom output format: ' + error.message);
+            }
+        }
+
+        function removeCustomOutputFormat(button) {
+            button.parentElement.remove();
+        }
+
+        function addFormatTemplate(pattern) {
+            const container = document.getElementById('customOutputFormatsList');
+            const formatGroup = document.createElement('div');
+            formatGroup.className = 'input-group input-group-sm mb-2';
+            formatGroup.innerHTML = `
+                <input type="text" class="form-control custom-output-format"
+                       value="Custom Template" placeholder="Format name">
+                <input type="text" class="form-control custom-output-pattern"
+                       value="${pattern}" placeholder="Pattern: YYYY-MM-DD HH:mm:ss">
+                <button class="btn btn-outline-danger" type="button" onclick="removeCustomOutputFormat(this)">
+                    <i class="bi bi-trash"></i>
+                </button>
+            `;
+            container.appendChild(formatGroup);
+        }
+
+        // Get all selected input formats
+        function getInputFormats() {
+            const formats = {
+                presets: [],
+                custom: []
+            };
+
+            // Get checked preset formats
+            const checkedFormats = document.querySelectorAll('input[type="checkbox"]:checked');
+            checkedFormats.forEach(checkbox => {
+                if (checkbox.value !== 'custom') {
+                    formats.presets.push(checkbox.value);
+                }
+            });
+
+            // Get custom input formats
+            const customInputs = document.querySelectorAll('.custom-input-format');
+            customInputs.forEach(input => {
+                if (input.value.trim()) {
+                    formats.custom.push(input.value.trim());
+                }
+            });
+
+            console.log('getInputFormats result:', formats);
+            return formats;
+        }
+
+        // Get all selected output formats
+        function getOutputFormats() {
+            const formats = [];
+
+            // Get checked preset formats
+            const checkedFormats = document.querySelectorAll('.output-format:checked');
+            checkedFormats.forEach(checkbox => {
+                formats.push(checkbox.value);
+            });
+
+            // Get custom output formats
+            const customGroups = document.querySelectorAll('#customOutputFormatsList .input-group');
+            customGroups.forEach(group => {
+                const nameInput = group.querySelector('.custom-output-format');
+                const patternInput = group.querySelector('.custom-output-pattern');
+                if (nameInput.value.trim() && patternInput.value.trim()) {
+                    formats.push({
+                        name: nameInput.value.trim(),
+                        pattern: patternInput.value.trim()
+                    });
+                }
+            });
+
+            return formats.length > 0 ? formats : ['full'];
+        }
+
+        // Enhanced convert time function with timezone matrix hypothesis
+        function convertTime() {
+            const timeInput = document.getElementById('timeInput');
+            const resultsDiv = document.getElementById('conversionResults');
+            const statusDiv = document.getElementById('conversionStatus');
+
+            if (!timeInput.value.trim()) {
+                alert('Please enter a time to convert');
+                return;
+            }
+
+            const targetTimezones = getTargetTimezonesFromUI();
+            const outputFormats = getOutputFormats();
+
+            console.log('Target timezones:', targetTimezones);
+            console.log('Output formats:', outputFormats);
+
+            if (targetTimezones.length < 2) {
+                alert('Please add at least 2 target timezones for matrix conversion');
+                return;
+            }
+
+            statusDiv.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Converting...';
+
+            // Parse input time
+            const baseDate = parseTimeInput(timeInput.value);
+            if (!baseDate) {
+                alert('Could not parse the input time. Please check the format.');
+                statusDiv.innerHTML = '<i class="bi bi-exclamation-triangle me-1"></i> Parse error';
+                return;
+            }
+
+            // Clear previous results
+            resultsDiv.innerHTML = '';
+
+            // Generate conversion matrix
+            setTimeout(() => {
+                const matrixResults = generateConversionMatrix(baseDate, targetTimezones, outputFormats, timeInput.value);
+                resultsDiv.innerHTML = matrixResults;
+                statusDiv.innerHTML = `<i class="bi bi-check-circle me-1"></i> Generated ${targetTimezones.length}×${targetTimezones.length} conversion matrix`;
+            }, 300);
+        }
+
+        // Parse time input (simplified version)
+        function parseTimeInput(input) {
+            // Try different parsing methods
+            const parsers = [
+                // "now" keyword
+                () => input.toLowerCase() === 'now' ? new Date() : null,
+
+                // ISO 8601
+                () => input.includes('T') ? new Date(input) : null,
+
+                // Unix timestamp
+                () => /^\d+$/.test(input) ? new Date(parseInt(input) * 1000) : null,
+
+                // Common date formats
+                () => {
+                    const date = new Date(input);
+                    return isNaN(date.getTime()) ? null : date;
+                }
+            ];
+
+            for (const parser of parsers) {
+                try {
+                    const result = parser();
+                    if (result && !isNaN(result.getTime())) {
+                        return result;
+                    }
+                } catch (e) {
+                    continue;
+                }
+            }
+
+            return new Date(); // fallback to current time
+        }
+
+        // Get target timezones from UI
+        function getTargetTimezonesFromUI() {
+            const container = document.getElementById('targetTimezones');
+            const items = container.querySelectorAll('.timezone-item');
+            const timezones = [];
+
+            items.forEach(item => {
+                const nameEl = item.querySelector('.timezone-name');
+                const descEl = item.querySelector('.timezone-description');
+                const utcEl = item.querySelector('.timezone-utc');
+
+                if (nameEl && descEl && utcEl) {
+                    const utcText = utcEl.textContent.trim();
+                    const offset = parseInt(utcText.replace('UTC', '').replace('+', '').replace('-', ''));
+                    const offsetHours = utcText.includes('-') ? -offset : offset;
+
+                    timezones.push({
+                        city: nameEl.textContent.trim(),
+                        description: descEl.textContent.trim(),
+                        utc: utcText,
+                        offset: offsetHours
+                    });
+                }
+            });
+
+            // Debug logging
+            console.log('Found timezones in UI:', timezones);
+
+            // Only use default timezones if absolutely none found
+            if (timezones.length === 0) {
+                console.log('No timezones found in UI, using defaults');
+                return [
+                    { city: 'New York', description: 'Eastern Time (ET)', utc: 'UTC-5', offset: -5 },
+                    { city: 'London', description: 'Greenwich Mean Time', utc: 'UTC+0', offset: 0 },
+                    { city: 'Tokyo', description: 'Japan Standard Time', utc: 'UTC+9', offset: 9 }
+                ];
+            }
+
+            return timezones;
+        }
+
+        // Generate conversion matrix with hypothesis testing
+        function generateConversionMatrix(baseDate, timezones, outputFormats, originalInput) {
+            let html = `
+                <div class="conversion-summary mb-4 p-3 bg-light rounded">
+                    <h5 class="mb-2">🔬 Timezone Conversion Matrix</h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Input Time:</strong> ${originalInput}<br>
+                            <strong>Parsed As:</strong> ${baseDate.toLocaleString()}<br>
+                            <strong>Source:</strong> Local time assumption for each row
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Output Formats:</strong> ${outputFormats.length} selected<br>
+                            <strong>Matrix Size:</strong> ${timezones.length}×${timezones.length}<br>
+                            <strong>Concept:</strong> Each row = hypothesis: "input time is in this timezone"
+                        </div>
+                    </div>
+                    <div class="mt-2 alert alert-info">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>Hypothesis Testing:</strong> Each row assumes the input time is in that timezone's local time, then converts to all other timezones.
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover conversion-matrix">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col" class="text-center" style="width: 180px;">
+                                    🌍 Input Assumed As<br>
+                                    <small>(Local Time)</small>
+                                </th>
+            `;
+
+            // Add header columns for each target timezone
+            timezones.forEach(tz => {
+                html += `
+                    <th scope="col" class="text-center">
+                                <strong>${tz.city}</strong><br>
+                                <small>${tz.utc}</small>
+                            </th>
+                `;
+            });
+
+            html += `
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            // Generate rows for each timezone as source
+            timezones.forEach((sourceTz, rowIndex) => {
+                html += `
+                    <tr>
+                        <td class="fw-bold text-center bg-light">
+                            <strong>${sourceTz.city}</strong><br>
+                            <small class="text-muted">${sourceTz.utc}</small>
+                            ${rowIndex === 0 ? '<br><span class="badge bg-primary">Original</span>' : ''}
+                        </td>
+                `;
+
+                // Convert from source timezone to each target timezone
+                timezones.forEach(targetTz => {
+                    const isDiagonal = rowIndex === timezones.indexOf(targetTz);
+
+                    if (isDiagonal) {
+                        // Same timezone - show original time
+                        html += `<td class="text-center table-active p-2">`;
+                    } else {
+                        html += `<td class="text-center p-2">`;
+                    }
+
+                    // Calculate timezone conversion
+                    const offsetDiff = targetTz.offset - sourceTz.offset;
+                    const convertedDate = new Date(baseDate.getTime() + (offsetDiff * 60 * 60 * 1000));
+
+                    // Generate all output formats for this conversion
+                    const formatElements = outputFormats.map(format => {
+                        return formatTimezoneWithCopy(convertedDate, format, targetTz);
+                    }).join('<br>');
+
+                    html += `
+                        <div class="timezone-conversion">
+                            <div class="formats">${formatElements}</div>
+                            ${isDiagonal ? '<div class="mt-2"><span class="badge bg-secondary">Original Time</span></div>' : ''}
+                        </div>
+                    </td>
+                `;
+            });
+
+            html += `</tr>`;
+        });
+
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-3 text-muted">
+                    <small>
+                        <i class="bi bi-lightbulb me-1"></i>
+                        <strong>How to read:</strong> Find your suspected timezone in the left column. The row shows what time it would be in all other timezones if your input time was actually in that timezone.<br>
+                        <i class="bi bi-clipboard me-1"></i>
+                        <strong>Click any timestamp</strong> to copy it to clipboard.
+                    </small>
+                </div>
+            `;
+
+            return html;
+        }
+
+        // Format time according to output format type
+        function formatTimezone(date, format) {
+            if (typeof format === 'string') {
+                switch (format) {
+                    case 'full':
+                        return `<span class="format-full">${date.toLocaleString()}</span>`;
+                    case 'date':
+                        return `<span class="format-date">${date.toLocaleDateString()}</span>`;
+                    case 'time':
+                        return `<span class="format-time">${date.toLocaleTimeString()}</span>`;
+                    case 'iso':
+                        return `<span class="format-iso">${date.toISOString()}</span>`;
+                    case 'timestamp':
+                        return `<span class="format-timestamp">${Math.floor(date.getTime() / 1000)}</span>`;
+                    case 'rfc':
+                        return `<span class="format-rfc">${date.toString()}</span>`;
+                    default:
+                        return `<span class="format-default">${date.toLocaleString()}</span>`;
+                }
+            } else {
+                // Custom format
+                return `<span class="format-custom"><code>${format.pattern}</code></span>`;
+            }
+        }
+
+        // Format time for specific timezone with copy-to-clipboard functionality
+        function formatTimezoneWithCopy(date, format, targetTimezone = null) {
+            let formattedValue = '';
+            let cssClass = '';
+
+            // Create a date that represents the target timezone
+            const targetOffset = targetTimezone.offset * 60; // Convert hours to minutes
+            const localOffset = date.getTimezoneOffset(); // Browser's local offset in minutes
+
+            // Calculate the difference and create a new date
+            const targetDate = new Date(date.getTime() + (targetOffset + localOffset) * 60 * 1000);
+
+            if (typeof format === 'string') {
+                switch (format) {
+                    case 'full':
+                        // Format as target timezone date and time
+                        formattedValue = formatDateCustom(targetDate, targetTimezone.utc);
+                        cssClass = 'format-full';
+                        break;
+                    case 'date':
+                        formattedValue = formatDateCustom(targetDate, targetTimezone.utc, 'date');
+                        cssClass = 'format-date';
+                        break;
+                    case 'time':
+                        formattedValue = formatDateCustom(targetDate, targetTimezone.utc, 'time');
+                        cssClass = 'format-time';
+                        break;
+                    case 'iso':
+                        // Use custom formatting for ISO-like output with timezone info
+                        const pad = (num) => num.toString().padStart(2, '0');
+                        const year = targetDate.getFullYear();
+                        const month = pad(targetDate.getMonth() + 1);
+                        const day = pad(targetDate.getDate());
+                        const hour = pad(targetDate.getHours());
+                        const minute = pad(targetDate.getMinutes());
+                        const second = pad(targetDate.getSeconds());
+                        formattedValue = `${year}-${month}-${day}T${hour}:${minute}:${second}${targetTimezone.utc}`;
+                        cssClass = 'format-iso';
+                        break;
+                    case 'timestamp':
+                        formattedValue = Math.floor(targetDate.getTime() / 1000).toString();
+                        cssClass = 'format-timestamp';
+                        break;
+                    case 'rfc':
+                        formattedValue = formatDateCustom(targetDate, targetTimezone.utc);
+                        cssClass = 'format-rfc';
+                        break;
+                    default:
+                        formattedValue = formatDateCustom(targetDate, targetTimezone.utc);
+                        cssClass = 'format-default';
+                }
+            } else {
+                // Custom format
+                formattedValue = format.pattern; // For demo, show pattern
+                cssClass = 'format-custom';
+            }
+
+            // Create clickable copy element
+            const copyId = 'copy-' + Math.random().toString(36).substr(2, 9);
+            return `
+                <span class="copyable ${cssClass}"
+                      id="${copyId}"
+                      onclick="copyToClipboard('${copyId}', '${formattedValue.replace(/'/g, "\\'")}')"
+                      title="Click to copy">
+                    ${formattedValue}
+                </span>
+            `;
+        }
+
+        // Custom date formatting for target timezone
+        function formatDateCustom(date, utcOffset, type = 'full') {
+            const pad = (num) => num.toString().padStart(2, '0');
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+            const year = date.getFullYear();
+            const month = months[date.getMonth()];
+            const day = date.getDate();
+            const hour = date.getHours();
+            const minute = date.getMinutes();
+            const second = date.getSeconds();
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+
+            switch (type) {
+                case 'date':
+                    return `${month} ${day}, ${year}`;
+                case 'time':
+                    return `${hour12}:${pad(minute)}:${pad(second)} ${ampm}`;
+                default:
+                    return `${month} ${day}, ${year}, ${hour12}:${pad(minute)}:${pad(second)} ${ampm} ${utcOffset}`;
+            }
+        }
+
+        // Copy to clipboard function
+        function copyToClipboard(elementId, text) {
+            const element = document.getElementById(elementId);
+
+            // Create temporary textarea for copying
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+
+            try {
+                textarea.select();
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textarea);
+
+                if (successful) {
+                    // Show success feedback
+                    const originalBg = element.style.backgroundColor;
+                    element.style.backgroundColor = '#28a745';
+                    element.style.color = 'white';
+
+                    setTimeout(() => {
+                        element.style.backgroundColor = originalBg;
+                        element.style.color = '';
+                    }, 300);
+
+                    // Show toast notification
+                    showToast('Copied to clipboard!');
+                }
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                document.body.removeChild(textarea);
+            }
+        }
+
+        // Show toast notification
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'position-fixed bottom-0 end-0 p-3';
+            toast.style.zIndex = '9999';
+            toast.innerHTML = `
+                <div class="toast show" role="alert">
+                    <div class="toast-body">
+                        <i class="bi bi-clipboard-check me-2"></i>${message}
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                document.body.removeChild(toast);
+            }, 2000);
+        }
+
+    
+        // Windows-style comprehensive timezone database
+        const TIMEZONE_DATABASE = [
+            // United States
+            { city: 'UTC-12', description: 'International Date Line West', utc: 'UTC-12', offset: -12 },
+            { city: 'UTC-11', description: 'Coordinated Universal Time-11', utc: 'UTC-11', offset: -11 },
+            { city: 'Honolulu', description: 'Hawaii', utc: 'UTC-10', offset: -10 },
+            { city: 'Anchorage', description: 'Alaska', utc: 'UTC-9', offset: -9 },
+            { city: 'Tijuana', description: 'Baja California', utc: 'UTC-8', offset: -8 },
+            { city: 'Los Angeles', description: 'Pacific Time (US & Canada)', utc: 'UTC-8', offset: -8 },
+            { city: 'Phoenix', description: 'Mountain Time (US & Canada)', utc: 'UTC-7', offset: -7 },
+            { city: 'Denver', description: 'Mountain Time (US & Canada)', utc: 'UTC-7', offset: -7 },
+            { city: 'Guadalajara', description: 'Guadalajara, Mexico City, Monterrey', utc: 'UTC-6', offset: -6 },
+            { city: 'Chicago', description: 'Central Time (US & Canada)', utc: 'UTC-6', offset: -6 },
+            { city: 'Winnipeg', description: 'Saskatchewan', utc: 'UTC-6', offset: -6 },
+            { city: 'Bogota', description: 'Bogota, Lima, Quito', utc: 'UTC-5', offset: -5 },
+            { city: 'New York', description: 'Eastern Time (US & Canada)', utc: 'UTC-5', offset: -5 },
+            { city: 'Toronto', description: 'Eastern Time (US & Canada)', utc: 'UTC-5', offset: -5 },
+            { city: 'Montreal', description: 'Eastern Time (US & Canada)', utc: 'UTC-5', offset: -5 },
+            { city: 'Indianapolis', description: 'Indiana (East)', utc: 'UTC-5', offset: -5 },
+            { city: 'Caracas', description: 'Caracas, La Paz', utc: 'UTC-4', offset: -4 },
+            { city: 'Halifax', description: 'Atlantic Time (Canada)', utc: 'UTC-4', offset: -4 },
+            { city: 'Santiago', description: 'Santiago', utc: 'UTC-4', offset: -4 },
+            { city: 'St. John\'s', description: 'Newfoundland', utc: 'UTC-3:30', offset: -3.5 },
+            { city: 'São Paulo', description: 'Brasilia', utc: 'UTC-3', offset: -3 },
+            { city: 'Buenos Aires', description: 'Buenos Aires', utc: 'UTC-3', offset: -3 },
+            { city: 'Georgetown', description: 'Georgetown, La Paz, Manaus, San Juan', utc: 'UTC-4', offset: -4 },
+            { city: 'Asuncion', description: 'Asuncion', utc: 'UTC-4', offset: -4 },
+            { city: 'Greenland', description: 'Greenland', utc: 'UTC-3', offset: -3 },
+            { city: 'Montevideo', description: 'Montevideo', utc: 'UTC-3', offset: -3 },
+            { city: 'Mid-Atlantic', description: 'Mid-Atlantic', utc: 'UTC-2', offset: -2 },
+            { city: 'Azores', description: 'Azores', utc: 'UTC-1', offset: -1 },
+            { city: 'Cape Verde', description: 'Cape Verde Is.', utc: 'UTC-1', offset: -1 },
+            { city: 'Dublin', description: 'Dublin, Edinburgh, Lisbon, London', utc: 'UTC+0', offset: 0 },
+            { city: 'London', description: 'Dublin, Edinburgh, Lisbon, London', utc: 'UTC+0', offset: 0 },
+            { city: 'Reykjavik', description: 'Monrovia, Reykjavik', utc: 'UTC+0', offset: 0 },
+            { city: 'Casablanca', description: 'Casablanca, Monrovia', utc: 'UTC+0', offset: 0 },
+            { city: 'Belgrade', description: 'Belgrade, Bratislava, Budapest, Ljubljana, Prague', utc: 'UTC+1', offset: 1 },
+            { city: 'Paris', description: 'Amsterdam, Berlin, Bern, Brussels, Luxembourg, Rome, Stockholm, Vienna', utc: 'UTC+1', offset: 1 },
+            { city: 'Madrid', description: 'Madrid', utc: 'UTC+1', offset: 1 },
+            { city: 'Monaco', description: 'Monaco', utc: 'UTC+1', offset: 1 },
+            { city: 'Andorra', description: 'Andorra', utc: 'UTC+1', offset: 1 },
+            { city: 'Sarajevo', description: 'Sarajevo, Skopje, Warsaw, Zagreb', utc: 'UTC+1', offset: 1 },
+            { city: 'Copenhagen', description: 'Copenhagen', utc: 'UTC+1', offset: 1 },
+            { city: 'Oslo', description: 'Oslo', utc: 'UTC+1', offset: 1 },
+            { city: 'Helsinki', description: 'Helsinki', utc: 'UTC+2', offset: 2 },
+            { city: 'West Central Africa', description: 'West Central Africa', utc: 'UTC+1', offset: 1 },
+            { city: 'Windhoek', description: 'Windhoek', utc: 'UTC+2', offset: 2 },
+            { city: 'Athens', description: 'Athens, Bucharest', utc: 'UTC+2', offset: 2 },
+            { city: 'Cairo', description: 'Cairo', utc: 'UTC+2', offset: 2 },
+            { city: 'Harare', description: 'Harare, Pretoria', utc: 'UTC+2', offset: 2 },
+            { city: 'Tallinn', description: 'Tallinn', utc: 'UTC+2', offset: 2 },
+            { city: 'Riga', description: 'Riga', utc: 'UTC+2', offset: 2 },
+            { city: 'Vilnius', description: 'Vilnius', utc: 'UTC+2', offset: 2 },
+            { city: 'Kyiv', description: 'Kyiv', utc: 'UTC+2', offset: 2 },
+            { city: 'Sofia', description: 'Sofia', utc: 'UTC+2', offset: 2 },
+            { city: 'Bucharest', description: 'Bucharest', utc: 'UTC+2', offset: 2 },
+            { city: 'Istanbul', description: 'Istanbul', utc: 'UTC+3', offset: 3 },
+            { city: 'Jerusalem', description: 'Jerusalem', utc: 'UTC+2', offset: 2 },
+            { city: 'Amman', description: 'Amman', utc: 'UTC+3', offset: 3 },
+            { city: 'Beirut', description: 'Beirut', utc: 'UTC+3', offset: 3 },
+            { city: 'Baghdad', description: 'Baghdad', utc: 'UTC+3', offset: 3 },
+            { city: 'Kuwait', description: 'Kuwait, Riyadh', utc: 'UTC+3', offset: 3 },
+            { city: 'Moscow', description: 'Moscow, St. Petersburg, Volgograd', utc: 'UTC+3', offset: 3 },
+            { city: 'Nairobi', description: 'Nairobi', utc: 'UTC+3', offset: 3 },
+            { city: 'Tehran', description: 'Tehran', utc: 'UTC+3:30', offset: 3.5 },
+            { city: 'Abu Dhabi', description: 'Abu Dhabi, Muscat', utc: 'UTC+4', offset: 4 },
+            { city: 'Baku', description: 'Baku', utc: 'UTC+4', offset: 4 },
+            { city: 'Tbilisi', description: 'Tbilisi', utc: 'UTC+4', offset: 4 },
+            { city: 'Yerevan', description: 'Yerevan', utc: 'UTC+4', offset: 4 },
+            { city: 'Port Louis', description: 'Port Louis', utc: 'UTC+4', offset: 4 },
+            { city: 'Kabul', description: 'Kabul', utc: 'UTC+4:30', offset: 4.5 },
+            { city: 'Karachi', description: 'Islamabad, Karachi', utc: 'UTC+5', offset: 5 },
+            { city: 'Tashkent', description: 'Tashkent', utc: 'UTC+5', offset: 5 },
+            { city: 'Ekaterinburg', description: 'Ekaterinburg', utc: 'UTC+5', offset: 5 },
+            { city: 'Chennai', description: 'Chennai, Kolkata, Mumbai, New Delhi', utc: 'UTC+5:30', offset: 5.5 },
+            { city: 'Mumbai', description: 'Chennai, Kolkata, Mumbai, New Delhi', utc: 'UTC+5:30', offset: 5.5 },
+            { city: 'New Delhi', description: 'Chennai, Kolkata, Mumbai, New Delhi', utc: 'UTC+5:30', offset: 5.5 },
+            { city: 'Kathmandu', description: 'Kathmandu', utc: 'UTC+5:45', offset: 5.75 },
+            { city: 'Dhaka', description: 'Astana, Dhaka', utc: 'UTC+6', offset: 6 },
+            { city: 'Almaty', description: 'Almaty', utc: 'UTC+6', offset: 6 },
+            { city: 'Urumqi', description: 'Urumqi', utc: 'UTC+6', offset: 6 },
+            { city: 'Rangoon', description: 'Rangoon', utc: 'UTC+6:30', offset: 6.5 },
+            { city: 'Bangkok', description: 'Bangkok, Hanoi, Jakarta', utc: 'UTC+7', offset: 7 },
+            { city: 'Jakarta', description: 'Bangkok, Hanoi, Jakarta', utc: 'UTC+7', offset: 7 },
+            { city: 'Krasnoyarsk', description: 'Krasnoyarsk', utc: 'UTC+7', offset: 7 },
+            { city: 'Beijing', description: 'Beijing, Chongqing, Hong Kong, Urumqi', utc: 'UTC+8', offset: 8 },
+            { city: 'Hong Kong', description: 'Beijing, Chongqing, Hong Kong, Urumqi', utc: 'UTC+8', offset: 8 },
+            { city: 'Singapore', description: 'Kuala Lumpur, Singapore', utc: 'UTC+8', offset: 8 },
+            { city: 'Taipei', description: 'Taipei', utc: 'UTC+8', offset: 8 },
+            { city: 'Perth', description: 'Perth', utc: 'UTC+8', offset: 8 },
+            { city: 'Irkutsk', description: 'Irkutsk, Ulaanbaatar', utc: 'UTC+8', offset: 8 },
+            { city: 'Ulaanbaatar', description: 'Irkutsk, Ulaanbaatar', utc: 'UTC+8', offset: 8 },
+            { city: 'Seoul', description: 'Seoul', utc: 'UTC+9', offset: 9 },
+            { city: 'Osaka', description: 'Osaka, Sapporo, Tokyo', utc: 'UTC+9', offset: 9 },
+            { city: 'Tokyo', description: 'Osaka, Sapporo, Tokyo', utc: 'UTC+9', offset: 9 },
+            { city: 'Yakutsk', description: 'Yakutsk', utc: 'UTC+9', offset: 9 },
+            { city: 'Darwin', description: 'Darwin', utc: 'UTC+9:30', offset: 9.5 },
+            { city: 'Adelaide', description: 'Adelaide', utc: 'UTC+9:30', offset: 9.5 },
+            { city: 'Brisbane', description: 'Brisbane', utc: 'UTC+10', offset: 10 },
+            { city: 'Sydney', description: 'Canberra, Melbourne, Sydney', utc: 'UTC+10', offset: 10 },
+            { city: 'Melbourne', description: 'Canberra, Melbourne, Sydney', utc: 'UTC+10', offset: 10 },
+            { city: 'Guam', description: 'Guam, Port Moresby', utc: 'UTC+10', offset: 10 },
+            { city: 'Vladivostok', description: 'Vladivostok', utc: 'UTC+10', offset: 10 },
+            { city: 'Hobart', description: 'Hobart', utc: 'UTC+10', offset: 10 },
+            { city: 'Solomon Is.', description: 'Solomon Is., New Caledonia', utc: 'UTC+11', offset: 11 },
+            { city: 'Noumea', description: 'Solomon Is., New Caledonia', utc: 'UTC+11', offset: 11 },
+            { city: 'Magadan', description: 'Magadan', utc: 'UTC+11', offset: 11 },
+            { city: 'Fiji', description: 'Fiji', utc: 'UTC+12', offset: 12 },
+            { city: 'Auckland', description: 'Auckland, Wellington', utc: 'UTC+12', offset: 12 },
+            { city: 'Wellington', description: 'Auckland, Wellington', utc: 'UTC+12', offset: 12 },
+            { city: 'Kamchatka', description: 'Kamchatka', utc: 'UTC+12', offset: 12 },
+            { city: 'Samoa', description: 'Independent State of Samoa', utc: 'UTC+13', offset: 13 },
+            { city: 'Nuku\'alofa', description: 'Nuku\'alofa', utc: 'UTC+13', offset: 13 },
+            { city: 'Kiritimati', description: 'Kiritimati', utc: 'UTC+14', offset: 14 }
+        ];
+
+        // Filter and display timezone suggestions
+        function filterTimezones(query) {
+            const availableContainer = document.getElementById('availableTimezones');
+
+            if (query.length < 2) {
+                availableContainer.style.display = 'none';
+                availableContainer.innerHTML = '';
+                return;
+            }
+
+            const lowerQuery = query.toLowerCase();
+            const matches = TIMEZONE_DATABASE.filter(tz =>
+                tz.city.toLowerCase().includes(lowerQuery) ||
+                tz.description.toLowerCase().includes(lowerQuery) ||
+                tz.utc.toLowerCase().includes(lowerQuery)
+            ).slice(0, 10); // Limit to 10 results
+
+            if (matches.length === 0) {
+                availableContainer.style.display = 'none';
+                availableContainer.innerHTML = '';
+                return;
+            }
+
+            let html = '<div class="card"><div class="card-body p-0" style="max-height: 200px; overflow-y: auto;">';
+
+            matches.forEach(tz => {
+                html += `
+                    <div class="timezone-suggestion p-2 border-bottom"
+                         style="cursor: pointer;"
+                         onmouseover="this.style.backgroundColor='#f8f9fa'"
+                         onmouseout="this.style.backgroundColor='white'"
+                         onclick="selectTimezone(${JSON.stringify(tz).replace(/"/g, '&quot;')})">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${tz.city}</strong>
+                                <small class="text-muted d-block">${tz.description}</small>
+                            </div>
+                            <span class="badge bg-secondary">${tz.utc}</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div></div>';
+            availableContainer.innerHTML = html;
+            availableContainer.style.display = 'block';
+        }
+
+        // Select a timezone from the suggestions
+        function selectTimezone(timezoneData) {
+            addTimezoneToUI(timezoneData);
+
+            // Clear search
+            document.getElementById('timezoneSearch').value = '';
+            document.getElementById('availableTimezones').style.display = 'none';
+            document.getElementById('availableTimezones').innerHTML = '';
+
+            // Show success feedback
+            showToast(`Added ${timezoneData.city} timezone`);
+        }
+
+        // Enhanced addTimezone function that shows a dropdown with popular timezones
+        function addTimezone() {
+            const availableContainer = document.getElementById('availableTimezones');
+
+            // Show popular timezones
+            const popularTimezones = [
+                { city: 'New York', description: 'Eastern Time (US & Canada)', utc: 'UTC-5', offset: -5 },
+                { city: 'London', description: 'Dublin, Edinburgh, Lisbon, London', utc: 'UTC+0', offset: 0 },
+                { city: 'Tokyo', description: 'Osaka, Sapporo, Tokyo', utc: 'UTC+9', offset: 9 },
+                { city: 'Los Angeles', description: 'Pacific Time (US & Canada)', utc: 'UTC-8', offset: -8 },
+                { city: 'Paris', description: 'Amsterdam, Berlin, Bern, Brussels, Luxembourg, Rome, Stockholm, Vienna', utc: 'UTC+1', offset: 1 },
+                { city: 'Sydney', description: 'Canberra, Melbourne, Sydney', utc: 'UTC+10', offset: 10 },
+                { city: 'Dubai', description: 'Abu Dhabi, Muscat', utc: 'UTC+4', offset: 4 },
+                { city: 'Singapore', description: 'Kuala Lumpur, Singapore', utc: 'UTC+8', offset: 8 }
+            ];
+
+            let html = '<div class="card"><div class="card-body p-0">';
+            html += '<div class="p-2 bg-light"><small class="text-muted"><strong>Popular Timezones</strong></small></div>';
+            html += '<div style="max-height: 200px; overflow-y: auto;">';
+
+            popularTimezones.forEach(tz => {
+                html += `
+                    <div class="timezone-suggestion p-2 border-bottom"
+                         style="cursor: pointer;"
+                         onmouseover="this.style.backgroundColor='#f8f9fa'"
+                         onmouseout="this.style.backgroundColor='white'"
+                         onclick="selectTimezone(${JSON.stringify(tz).replace(/"/g, '&quot;')})">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>${tz.city}</strong>
+                                <small class="text-muted d-block">${tz.description}</small>
+                            </div>
+                            <span class="badge bg-secondary">${tz.utc}</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '<div class="p-2 bg-light"><small class="text-muted">Type in the search box above to find more timezones</small></div>';
+            html += '</div></div></div>';
+
+            availableContainer.innerHTML = html;
+            availableContainer.style.display = 'block';
+
+            // Focus on search box
+            document.getElementById('timezoneSearch').focus();
+        }
+
+        // Hide timezone dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const availableContainer = document.getElementById('availableTimezones');
+            const searchInput = document.getElementById('timezoneSearch');
+            const addButton = event.target.closest('[onclick="addTimezone()"]');
+
+            if (!availableContainer.contains(event.target) && event.target !== searchInput && !addButton) {
+                availableContainer.style.display = 'none';
+            }
+        });
+
+        function saveSettings() {
+            // Keep the old function for backward compatibility
+            saveAllSettings();
+        }
+
+        // Debug function to clear all settings
+        function clearAllSettings() {
+            localStorage.removeItem('timezoneConverterAllSettings');
+            localStorage.removeItem('timezoneConverterSettings');
+            console.log('All timezone converter settings cleared from localStorage');
+            showToast('All settings cleared!');
+        }
+
+        // Debug function to show current localStorage contents
+        function showLocalStorage() {
+            const allSettings = localStorage.getItem('timezoneConverterAllSettings');
+            const oldSettings = localStorage.getItem('timezoneConverterSettings');
+
+            console.log('=== Current localStorage Contents ===');
+            console.log('timezoneConverterAllSettings:', allSettings ? JSON.parse(allSettings) : null);
+            console.log('timezoneConverterSettings:', oldSettings ? JSON.parse(oldSettings) : null);
+
+            if (allSettings) {
+                showToast('Settings found in localStorage - check console');
+            } else {
+                showToast('No settings found in localStorage');
+            }
+        }
+
+        // Enhanced save settings function that saves all configuration
+        function saveAllSettings() {
+            // Get all settings
+            const inputFormats = getInputFormats();
+            const targetTimezones = getTargetTimezones();
+            const outputFormats = getOutputFormats();
+            const lastInput = document.getElementById('timeInput').value;
+
+            console.log('Saving settings:');
+            console.log('Input formats:', inputFormats);
+            console.log('Target timezones:', targetTimezones);
+            console.log('Output formats:', outputFormats);
+            console.log('Last input:', lastInput);
+
+            const allSettings = {
+                // Input formats
+                inputFormats: inputFormats,
+
+                // Target timezones
+                targetTimezones: targetTimezones,
+
+                // Output formats
+                outputFormats: outputFormats,
+
+                // Last input value
+                lastInput: lastInput,
+
+                // Timestamp
+                savedAt: new Date().toISOString()
+            };
+
+            // Save to localStorage
+            localStorage.setItem('timezoneConverterAllSettings', JSON.stringify(allSettings));
+
+            // Verify it was saved
+            const saved = localStorage.getItem('timezoneConverterAllSettings');
+            const parsed = JSON.parse(saved);
+            console.log('Verified saved settings:', parsed);
+
+            // Show success message
+            const successMsg = document.createElement('div');
+            successMsg.className = 'alert alert-success alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x mt-3';
+            successMsg.style.zIndex = '9999';
+            successMsg.innerHTML = `
+                <i class="bi bi-check-circle me-2"></i>All settings saved successfully!
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(successMsg);
+
+            setTimeout(() => {
+                successMsg.remove();
+            }, 3000);
+        }
+
+        // Function to add a timezone to the target list
+        function addTimezoneToUI(timezoneData) {
+            const container = document.getElementById('targetTimezones');
+            const timezoneItem = document.createElement('div');
+            timezoneItem.className = 'timezone-item';
+            timezoneItem.innerHTML = `
+                <div class="timezone-info">
+                    <span class="timezone-name">${timezoneData.city || timezoneData.name}</span>
+                    <span class="timezone-separator">|</span>
+                    <span class="timezone-description">${timezoneData.description || ''}</span>
+                    <span class="timezone-separator">|</span>
+                    <span class="timezone-utc">${timezoneData.utc || ''}</span>
+                </div>
+                <button class="btn btn-outline-danger btn-sm" onclick="removeTimezone(this)" title="Remove">
+                    <i class="bi bi-trash"></i>
+                </button>
+            `;
+            container.appendChild(timezoneItem);
+        }
+
+        // Function to add default timezones for demo
+        function addDefaultTimezones() {
+            const defaultTimezones = [
+                { city: 'New York', description: 'Eastern Time (US & Canada)', utc: 'UTC-5', offset: -5 },
+                { city: 'London', description: 'Dublin, Edinburgh, Lisbon, London', utc: 'UTC+0', offset: 0 },
+                { city: 'Tokyo', description: 'Osaka, Sapporo, Tokyo', utc: 'UTC+9', offset: 9 }
+            ];
+
+            defaultTimezones.forEach(tz => {
+                addTimezoneToUI(tz);
+            });
+        }
+
+        // Function to remove a timezone
+        function removeTimezone(button) {
+            button.parentElement.remove();
+        }
+
+        // Enhanced addTimezone function that opens a modal or shows suggestions
+        function addTimezone() {
+            // For demo, add a sample timezone
+            const sampleTimezones = [
+                { city: 'Paris', description: 'Central European Time', utc: 'UTC+1' },
+                { city: 'Sydney', description: 'Australian Eastern Time', utc: 'UTC+10' },
+                { city: 'Dubai', description: 'Gulf Standard Time', utc: 'UTC+4' },
+                { city: 'Los Angeles', description: 'Pacific Time (PT)', utc: 'UTC-8' }
+            ];
+
+            // Add a random sample timezone
+            const randomTz = sampleTimezones[Math.floor(Math.random() * sampleTimezones.length)];
+            addTimezoneToUI(randomTz);
+        }
+
+        // Function to get target timezones from the UI
+        function getTargetTimezones() {
+            return getTargetTimezonesFromUI();
+        }
+
+        // Load saved settings on page load
+        function loadSettings() {
+            const savedSettings = localStorage.getItem('timezoneConverterSettings');
+            if (savedSettings) {
+                try {
+                    const settings = JSON.parse(savedSettings);
+                    console.log('Loaded settings:', settings);
+                    // TODO: Restore the settings to the UI
+                } catch (e) {
+                    console.error('Failed to load settings:', e);
+                }
+            }
+        }
+
+        // Restore input formats from saved settings
+        function restoreInputFormats(inputFormats) {
+            console.log('Restoring input formats:', inputFormats);
+
+            // Handle old format (array) for backward compatibility
+            if (Array.isArray(inputFormats)) {
+                console.log('Converting old array format to new object format');
+                const presets = inputFormats.filter(f => f !== 'auto' && !f.match(/^YYYY|DDDD|MM/));
+                const custom = inputFormats.filter(f => f.match(/^YYYY|DDDD|MM/));
+                inputFormats = { presets, custom };
+            }
+
+            if (!inputFormats || typeof inputFormats !== 'object') return;
+
+            // Clear all checkboxes first
+            document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                if (checkbox.value !== 'custom') {
+                    checkbox.checked = false;
+                }
+            });
+
+            // Clear custom input formats (but keep the container)
+            document.querySelectorAll('.custom-input-format').forEach(input => {
+                const parentGroup = input.closest('.input-group');
+                if (parentGroup && parentGroup.id !== 'customInputFormatsList') {
+                    parentGroup.remove();
+                }
+            });
+
+            // Restore preset formats
+            if (inputFormats.presets && Array.isArray(inputFormats.presets)) {
+                inputFormats.presets.forEach(format => {
+                    const checkbox = document.querySelector(`input[type="checkbox"][value="${format}"]`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                        console.log('Restored preset format:', format);
+                    } else {
+                        console.log('Preset format not found:', format);
+                    }
+                });
+            }
+
+            // Restore custom formats
+            if (inputFormats.custom && Array.isArray(inputFormats.custom)) {
+                inputFormats.custom.forEach(customFormat => {
+                    if (customFormat.trim()) {
+                        const container = document.getElementById('customInputFormatsList');
+                        if (container) {
+                            const formatGroup = document.createElement('div');
+                            formatGroup.className = 'input-group input-group-sm mb-2';
+                            formatGroup.innerHTML = `
+                                <input type="text" class="form-control custom-input-format"
+                                       value="${customFormat}"
+                                       placeholder="e.g., YYYY-MM-DD HH:mm:ss">
+                                <button class="btn btn-outline-danger" type="button" onclick="removeCustomInputFormat(this)" style="margin-left: 8px;">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            `;
+                            container.appendChild(formatGroup);
+                            console.log('Restored custom format:', customFormat);
+                        }
+                    }
+                });
+            }
+
+            // Ensure auto is checked if no other formats are selected
+            const totalFormats = (inputFormats.presets?.length || 0) + (inputFormats.custom?.length || 0);
+            if (totalFormats === 0) {
+                document.getElementById('inputAuto').checked = true;
+            }
+
+            console.log('Input formats restoration completed');
+        }
+
+        // Restore output formats from saved settings
+        function restoreOutputFormats(outputFormats) {
+            if (!Array.isArray(outputFormats)) return;
+
+            // Clear all output format checkboxes first
+            document.querySelectorAll('.output-format').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+
+            // Restore output formats
+            outputFormats.forEach(format => {
+                const checkbox = document.querySelector(`.output-format[value="${format}"]`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            });
+
+            // Ensure at least one format is selected
+            const checkedCount = document.querySelectorAll('.output-format:checked').length;
+            if (checkedCount === 0 && outputFormats.length > 0) {
+                const firstCheckbox = document.querySelector('.output-format[value="' + outputFormats[0] + '"]');
+                if (firstCheckbox) {
+                    firstCheckbox.checked = true;
+                }
+            }
+        }
+
+        // Enhanced load settings function that restores all configuration
+        function loadAllSettings() {
+            const savedSettings = localStorage.getItem('timezoneConverterAllSettings');
+            if (savedSettings) {
+                try {
+                    const settings = JSON.parse(savedSettings);
+                    console.log('Loading all settings:', settings);
+
+                    // Restore last input value
+                    if (settings.lastInput) {
+                        document.getElementById('timeInput').value = settings.lastInput;
+                    }
+
+                    // Clear existing timezones first to prevent duplication
+                    const container = document.getElementById('targetTimezones');
+                    container.innerHTML = '';
+
+                    // Restore target timezones if they exist
+                    if (settings.targetTimezones && Array.isArray(settings.targetTimezones)) {
+                        settings.targetTimezones.forEach(tz => {
+                            addTimezoneToUI(tz);
+                        });
+                        console.log('Restored', settings.targetTimezones.length, 'timezones from settings');
+                    } else {
+                        // Add default timezones if none saved
+                        addDefaultTimezones();
+                    }
+
+                    // Restore input formats
+                    if (settings.inputFormats) {
+                        restoreInputFormats(settings.inputFormats);
+                        console.log('Restored input formats:', settings.inputFormats);
+                    }
+
+                    // Restore output formats
+                    if (settings.outputFormats) {
+                        restoreOutputFormats(settings.outputFormats);
+                        console.log('Restored output formats:', settings.outputFormats);
+                    }
+
+                    console.log('All settings restored successfully');
+
+                } catch (e) {
+                    console.error('Failed to load settings:', e);
+                    // Add default timezones on error
+                    addDefaultTimezones();
+                }
+            } else {
+                // No saved settings, add default timezones
+                addDefaultTimezones();
+            }
+        }
+    </script>
+</body>
+</html>

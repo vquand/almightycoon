@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(start \"G:\\UCS\\PlayingGround\\jsonToTable\\index.html\")"
+      "Bash(start \"G:\\UCS\\PlayingGround\\jsonToTable\\index.html\")",
+      "Bash(node -c:*)",
+      "Bash(start \"G:\\UCS\\PlayingGround\\jsonToTable\\index.html?module=json-to-table\")",
+      "Bash(start \"G:\\UCS\\PlayingGround\\jsonToTable\\index.html?module=timezone-converter\")",
+      "Bash(start:*)"
     ],
     "deny": [],
     "ask": []

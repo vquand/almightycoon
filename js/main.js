@@ -7,7 +7,8 @@
 const AppConfig = {
     name: 'Almightycoon',
     version: '1.0.0',
-    debug: false  // Production mode
+    debug: true,  // Debug mode temporarily enabled
+    currentModule: 'json-to-table'  // Track current module
 };
 
 // Available modules
@@ -15,7 +16,8 @@ const Modules = {
     'json-to-table': {
         name: 'JSON to Table',
         init: () => window.JsonToTable?.init(),
-        required: true
+        required: true,
+        showPanel: () => showJsonToTablePanel()
     },
     'table-to-json': {
         name: 'Table to JSON',
@@ -23,7 +25,8 @@ const Modules = {
             console.log('Table to JSON module - Coming soon!');
             // Future implementation
         },
-        required: false
+        required: false,
+        showPanel: () => showComingSoonPanel('Table to JSON')
     },
     'csv-converter': {
         name: 'CSV Converter',
@@ -31,7 +34,8 @@ const Modules = {
             console.log('CSV Converter module - Coming soon!');
             // Future implementation
         },
-        required: false
+        required: false,
+        showPanel: () => showComingSoonPanel('CSV Converter')
     },
     'xml-converter': {
         name: 'XML Converter',
@@ -39,7 +43,20 @@ const Modules = {
             console.log('XML Converter module - Coming soon!');
             // Future implementation
         },
-        required: false
+        required: false,
+        showPanel: () => showComingSoonPanel('XML Converter')
+    },
+    'timezone-converter': {
+        name: 'Multi-Timezone Converter',
+        init: () => {
+            console.log('Opening timezone converter in separate page...');
+            window.open('timezone-converter.html', '_blank');
+        },
+        required: false,
+        showPanel: () => {
+            console.log('Opening timezone converter in separate page...');
+            window.open('timezone-converter.html', '_blank');
+        }
     }
 };
 
@@ -47,12 +64,283 @@ const Modules = {
 function initApp() {
     log('Initializing Almightycoon application...');
 
+    // Set up URL routing first
+    window.addEventListener('popstate', handleURLChange);
+
+    // Set up converter type change listener
+    setupConverterTypeListener();
+
     // Wait for DOM to be ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initializeModules);
     } else {
         initializeModules();
     }
+}
+
+// Setup converter type change listener
+function setupConverterTypeListener() {
+    // Handle button group clicks
+    document.addEventListener('click', (e) => {
+        // Check if clicked on a module button or its child
+        const moduleButton = e.target.closest('[data-module]');
+        if (moduleButton) {
+            e.preventDefault();
+
+            // Remove active class from all buttons
+            document.querySelectorAll('[data-module]').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Add active class to clicked button
+            moduleButton.classList.add('active');
+
+            const selectedModule = moduleButton.dataset.module;
+            const moduleName = moduleButton.textContent.trim();
+
+            log(`Button clicked: ${selectedModule} - ${moduleName}`);
+
+            // Switch to the module
+            switchToModule(selectedModule);
+        }
+    });
+}
+
+// URL-based routing system
+function updateURL(moduleId) {
+    const url = new URL(window.location);
+    url.searchParams.set('module', moduleId);
+    window.history.pushState({ module: moduleId }, '', url);
+    AppConfig.currentModule = moduleId;
+}
+
+function getModuleFromURL() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('module') || 'json-to-table';
+}
+
+function handleURLChange() {
+    const moduleId = getModuleFromURL();
+    if (moduleId !== AppConfig.currentModule) {
+        switchToModule(moduleId);
+    }
+}
+
+// Switch to a specific module
+function switchToModule(moduleId) {
+    log(`Switching to module: ${moduleId}`);
+
+    const module = Modules[moduleId];
+    if (!module) {
+        log(`Module ${moduleId} not found`, 'error');
+        return;
+    }
+
+    // Update current module and URL (skip if same module to avoid loops)
+    if (AppConfig.currentModule !== moduleId) {
+        AppConfig.currentModule = moduleId;
+        updateURL(moduleId);
+    }
+
+    // Hide all converter modules first
+    hideAllConverterModules();
+
+    // Show the selected module's panel
+    if (typeof module.showPanel === 'function') {
+        module.showPanel();
+    } else {
+        log(`No showPanel function for module ${moduleId}`, 'warn');
+        // Default: show coming soon
+        showComingSoonPanel(module.name);
+    }
+
+    // Initialize the module if not already initialized
+    // Only call init if we haven't initialized it before or if it's specifically needed
+    if (typeof module.init === 'function') {
+        try {
+            // For now, always init to ensure modules work properly
+            // This could be optimized to track initialization state
+            module.init();
+        } catch (error) {
+            log(`Error initializing module ${moduleId}: ${error.message}`, 'error');
+        }
+    }
+}
+
+// Hide all converter modules
+function hideAllConverterModules() {
+    log('Hiding all converter modules');
+
+    // Hide all modules with class 'converter-module'
+    const modules = document.querySelectorAll('.converter-module');
+    modules.forEach(module => {
+        module.classList.add('d-none');
+        module.style.display = 'none';
+        module.style.visibility = 'hidden';
+        module.style.opacity = '0';
+    });
+
+    // Hide the main content panels
+    const mainContent = document.querySelector('main > .d-flex');
+    const resizeDivider = document.getElementById('resizeDivider');
+    const timezoneModule = document.getElementById('timezoneConverterModule');
+
+    if (mainContent) {
+        mainContent.classList.add('d-none');
+        mainContent.style.display = 'none';
+    }
+    if (resizeDivider) {
+        resizeDivider.classList.add('d-none');
+        resizeDivider.style.display = 'none';
+    }
+    if (timezoneModule) {
+        timezoneModule.classList.add('d-none');
+        timezoneModule.style.display = 'none';
+        timezoneModule.style.visibility = 'hidden';
+        timezoneModule.style.opacity = '0';
+    }
+
+    // Hide any coming soon panel
+    const comingSoonPanel = document.getElementById('comingSoonPanel');
+    if (comingSoonPanel) {
+        comingSoonPanel.classList.add('d-none');
+        comingSoonPanel.style.display = 'none';
+    }
+}
+
+// Show JSON to Table panel (default)
+function showJsonToTablePanel() {
+    log('Showing JSON to Table panel');
+
+    const mainContent = document.querySelector('main > .d-flex');
+    const resizeDivider = document.getElementById('resizeDivider');
+    const timezoneModule = document.getElementById('timezoneConverterModule');
+
+    // Ensure timezone module is completely hidden
+    if (timezoneModule) {
+        timezoneModule.classList.add('d-none');
+        timezoneModule.style.display = 'none';
+        timezoneModule.style.visibility = 'hidden';
+        timezoneModule.style.opacity = '0';
+    }
+
+    // Show main content with explicit styles
+    if (mainContent) {
+        mainContent.classList.remove('d-none');
+        mainContent.style.display = '';
+        mainContent.style.visibility = 'visible';
+        mainContent.style.opacity = '1';
+    }
+    if (resizeDivider) {
+        resizeDivider.classList.remove('d-none');
+        resizeDivider.style.display = '';
+    }
+
+    // Hide any coming soon panel
+    const comingSoonPanel = document.getElementById('comingSoonPanel');
+    if (comingSoonPanel) {
+        comingSoonPanel.classList.add('d-none');
+        comingSoonPanel.style.display = 'none';
+    }
+}
+
+// Show Timezone Converter panel
+function showTimezoneConverterPanel() {
+    log('Showing Timezone Converter panel');
+
+    const mainContent = document.querySelector('main > .d-flex');
+    const resizeDivider = document.getElementById('resizeDivider');
+    const timezoneModule = document.getElementById('timezoneConverterModule');
+
+    // Hide main content completely
+    if (mainContent) {
+        mainContent.classList.add('d-none');
+        mainContent.style.display = 'none';
+    }
+    if (resizeDivider) {
+        resizeDivider.classList.add('d-none');
+        resizeDivider.style.display = 'none';
+    }
+
+    // Hide any coming soon panel
+    const comingSoonPanel = document.getElementById('comingSoonPanel');
+    if (comingSoonPanel) {
+        comingSoonPanel.classList.add('d-none');
+        comingSoonPanel.style.display = 'none';
+    }
+
+    // Show timezone module
+    if (timezoneModule) {
+        timezoneModule.classList.remove('d-none');
+        timezoneModule.classList.add('active');
+        log('Timezone module shown successfully');
+    } else {
+        log('Timezone converter module not found in DOM', 'error');
+    }
+}
+
+// Show coming soon panel for unimplemented modules
+function showComingSoonPanel(moduleName) {
+    const mainContent = document.querySelector('main > .d-flex');
+    const resizeDivider = document.getElementById('resizeDivider');
+    const timezoneModule = document.getElementById('timezoneConverterModule');
+
+    // Hide all other panels completely
+    if (mainContent) {
+        mainContent.classList.add('d-none');
+        mainContent.style.display = 'none';
+    }
+    if (resizeDivider) {
+        resizeDivider.classList.add('d-none');
+        resizeDivider.style.display = 'none';
+    }
+    if (timezoneModule) {
+        timezoneModule.classList.add('d-none');
+        timezoneModule.style.display = 'none';
+    }
+
+    // Create or show coming soon panel
+    let comingSoonPanel = document.getElementById('comingSoonPanel');
+    if (!comingSoonPanel) {
+        comingSoonPanel = document.createElement('div');
+        comingSoonPanel.id = 'comingSoonPanel';
+        comingSoonPanel.className = 'container-fluid h-100 d-flex flex-column justify-content-center align-items-center bg-light';
+        comingSoonPanel.innerHTML = `
+            <div class="text-center">
+                <i class="bi bi-tools" style="font-size: 4rem; color: #4facfe; opacity: 0.7;"></i>
+                <h2 class="mt-4 mb-3">Coming Soon</h2>
+                <h4 class="text-muted mb-4" id="comingSoonModuleName">${moduleName}</h4>
+                <p class="text-muted mb-4">This feature is currently under development.<br>Check back soon for updates!</p>
+                <button class="btn btn-primary" onclick="switchToDefaultModule()">
+                    <i class="bi bi-arrow-left me-2"></i>Back to JSON to Table
+                </button>
+            </div>
+        `;
+        document.querySelector('main').appendChild(comingSoonPanel);
+    } else {
+        document.getElementById('comingSoonModuleName').textContent = moduleName;
+        comingSoonPanel.classList.remove('d-none');
+        comingSoonPanel.classList.add('d-flex');
+        comingSoonPanel.style.display = '';
+        comingSoonPanel.style.visibility = 'visible';
+        comingSoonPanel.style.opacity = '1';
+    }
+}
+
+// Switch back to default module (JSON to Table)
+function switchToDefaultModule() {
+    // Update button group UI
+    document.querySelectorAll('[data-module]').forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    const jsonToTableButton = document.querySelector('[data-module="json-to-table"]');
+    if (jsonToTableButton) {
+        jsonToTableButton.classList.add('active');
+    }
+
+    // Switch to the module
+    switchToModule('json-to-table');
 }
 
 // Initialize all available modules
@@ -90,8 +378,22 @@ function initializeModules() {
     if (initializedModules.length > 0) {
         log(`🚀 Application ready! Initialized modules: ${initializedModules.join(', ')}`);
 
-        // Show welcome message or initial state
-        showWelcomeMessage();
+        // Route to the module specified in URL or show default
+        const initialModule = getModuleFromURL();
+        log(`Initial module from URL: ${initialModule}`);
+
+        // Set button states
+        document.querySelectorAll('[data-module]').forEach(btn => {
+            btn.classList.remove('active');
+        });
+
+        const activeButton = document.querySelector(`[data-module="${initialModule}"]`);
+        if (activeButton) {
+            activeButton.classList.add('active');
+        }
+
+        // Switch to the appropriate module
+        switchToModule(initialModule);
     }
 
     if (failedModules.length > 0) {
@@ -229,7 +531,8 @@ window.Almightycoon = {
     registerModule,
     unregisterModule,
     log,
-    init: initApp
+    init: initApp,
+    switchToDefaultModule: switchToDefaultModule
 };
 
 // Auto-initialize the application
